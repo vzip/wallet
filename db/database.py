@@ -4,8 +4,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+import os
 
-DATABASE_URL = 'postgresql+asyncpg://admin:Dezya201188@localhost/wallet_db'
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://default_user:default_pass@localhost/default_db")
+
 engine = create_async_engine(DATABASE_URL, echo=True)
 
 # Local
