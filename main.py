@@ -1,16 +1,17 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from infrastructure.db.database import create_tables, get_db
-from application.services import user_service, transaction_service
+from application.services import user_service, transaction_service, wallet_service
 from application.dtos.user_dto import UserCreateDTO, UserOutDTO, UserListDTO
 from application.dtos.wallet_dto import WalletCreateDTO, WalletOutDTO, WalletListDTO
 from application.dtos.transaction_dto import TransactionCreateDTO, TransactionListDTO, TransactionOutDTO
 from domain.repositories.user_repository import UserRepository, get_user_by_username
 from domain.repositories.wallet_repository import WalletRepository
 from decimal import Decimal
+from typing import List
 import logging
 
 
@@ -26,7 +27,8 @@ SECRET_KEY = "YourSecretKey"
 ALGORITHM = "HS256"
 
 # OAuth2
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
+
 
 # Класс для обработки ошибок
 class ErrorResponse(BaseModel):
@@ -40,14 +42,18 @@ async def http_exception_handler(request, exc):
         content={"status": exc.status_code, "message": exc.detail},
     )
 
+
+async def get_token(authorization: str = Header(None)):
+    return authorization
+
 # Проверка токена и пользователя
-async def get_current_user(token: str = Depends(oauth2_scheme), session: AsyncSession = Depends(get_db)):
+async def get_current_user(token: str = Depends(get_token), session: AsyncSession = Depends(get_db)):
     try:
         # Верифицируем токен и получаем user_id
-        user_id = user_service.verify_token(token)
+        user_id = await user_service.verify_token(token)
         
         # Проверяем, существует ли пользователь в базе данных
-        current_user = await user_service.get_user_by_id(session, user_id)
+        current_user = await user_service.get_user_by_id_from_token(session, user_id)
         if current_user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
         
@@ -58,7 +64,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), session: AsyncSe
 
 # Пользователи
 @app.get("/users/me", response_model=UserOutDTO)
-async def read_users_me(current_user: str = Depends(get_current_user)):
+async def read_users_me(current_user: object = Depends(get_current_user)):
     return current_user
 
 # Аутентификация и Регистрация
@@ -67,8 +73,10 @@ async def register(user: UserCreateDTO, session: AsyncSession = Depends(get_db))
     user = await user_service.create_user(session, user)
     if not user: # check this for False
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    new_wallet = WalletCreateDTO(balance=0.02, currency_id=1, user_id=user.id)
+    wallet = await wallet_service.create_wallet(session, new_wallet)
     access_token = user_service.create_access_token(user.id)
-    return {"access_token": access_token}
+    return f"access_token: {access_token}, wallet: {wallet}"
 
 @app.post("/auth/login")
 async def login(username: str, password: str, session: AsyncSession = Depends(get_db)):
@@ -80,6 +88,12 @@ async def login(username: str, password: str, session: AsyncSession = Depends(ge
 
 
 # Кошельки и дальнейшие методы
+@app.get("/wallets", response_model=List[WalletOutDTO])  # Убедитесь, что у вас есть соответствующий DTO
+async def get_wallets(session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
+    # Получение списка кошельков из сервиса
+    wallets = await wallet_service.get_wallets_by_user_id(session, current_user.id)
+    return wallets
+
 
 @app.post("/wallet/deposit", response_model=WalletOutDTO)
 async def deposit_wallet(wallet_id: int, amount: Decimal, current_user: str = Depends(get_current_user)):

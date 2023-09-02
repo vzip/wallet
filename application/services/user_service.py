@@ -3,7 +3,7 @@ from sqlalchemy import or_
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.models import User, Wallet
-from domain.repositories.user_repository import UserRepository, get_user_by_username
+from domain.repositories.user_repository import get_user_by_id, get_user_by_username
 from application.dtos.user_dto import UserCreateDTO, UserOutDTO, UserUpdateDTO
 from decimal import Decimal
 import jwt
@@ -51,8 +51,8 @@ async def authenticate_user(session: AsyncSession, username: str, password: str)
     return UserOutDTO(id=exist_user.id)
 
 # Get user by ID
-async def get_user_by_id(session: AsyncSession, user_id: int):
-    user = await UserRepository(session).get_user_by_id(user_id)
+async def get_user_by_id_from_token(session: AsyncSession, user_id: int):
+    user = await get_user_by_id(session, user_id)
     if not user:
         return None
     return UserOutDTO(id=user.id, username=user.username)
@@ -60,7 +60,7 @@ async def get_user_by_id(session: AsyncSession, user_id: int):
 # Verify token
 async def verify_token(token: str):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=ALGORITHM)
         user_id = payload.get("sub")
         if user_id is None:
             return None

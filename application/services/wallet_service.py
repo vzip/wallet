@@ -1,14 +1,20 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from domain.models import Wallet
-from application.dtos.wallet_dto import WalletListDTO, WalletOutDTO
+from application.dtos.wallet_dto import WalletListDTO, WalletOutDTO, WalletCreateDTO
 from domain.repositories.wallet_repository import WalletRepository
 from decimal import Decimal
 
-async def create_wallet(session: AsyncSession, user_id: int, balance: Decimal, currency_id: int):
-    new_wallet = Wallet(user_id=user_id, balance=balance, currency_id=currency_id)
+async def create_wallet(session: AsyncSession, new_wallet: WalletCreateDTO):
+    new_wallet = Wallet(user_id=new_wallet.user_id, balance=new_wallet.balance, currency_id=new_wallet.currency_id)
     session.add(new_wallet)
+    await session.flush() 
     await session.commit()
+    return WalletOutDTO(
+        id=new_wallet.id,
+        balance=new_wallet.balance,
+        currency_id=new_wallet.currency_id
+    )
 
 async def get_wallet_by_user_id(session: AsyncSession, user_id: int):
     stmt = select(Wallet).where(Wallet.user_id == user_id)
@@ -23,7 +29,7 @@ def to_wallet_out_dto(wallet):
         currency_id=wallet.currency_id
     )
 
-async def get_user_wallets(session: AsyncSession, user_id: int):
+async def get_wallets_by_user_id(session: AsyncSession, user_id: int):
     wallet_repo = WalletRepository(session)
     wallets = await wallet_repo.get_user_wallets(user_id)
     

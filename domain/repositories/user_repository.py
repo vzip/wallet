@@ -16,17 +16,6 @@ class UserRepository:
             await self.session.rollback()
             raise e  # 
 
-    async def get_user_by_id(self, user_id: int):
-        try:
-            return await self.session.query(User).filter(User.id == user_id).first()
-        except SQLAlchemyError as e:
-            raise e  # 
-
-    async def get_user_by_username(self, username: str):
-        try:
-            return await self.session.query(User).filter(User.username == username).first()
-        except SQLAlchemyError as e:
-            raise e  #     
 
     async def get_user_by_username(session: AsyncSession, username: str):
         try:
@@ -37,7 +26,15 @@ class UserRepository:
         except SQLAlchemyError as e:
                 raise e  # 
     
-
+async def get_user_by_id(session: AsyncSession, user_id: int):
+        try:
+            stmt = select(User).where(User.id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+            return user        
+        except SQLAlchemyError as e:
+            raise e  # 
+        
 async def get_user_by_username(session: AsyncSession, username: str):
     try:
         stmt = select(User).where(User.username == username)

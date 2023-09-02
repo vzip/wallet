@@ -1,5 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.models import Wallet
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select
 
 class WalletRepository:
     def __init__(self, session: AsyncSession):
@@ -14,4 +16,13 @@ class WalletRepository:
 
     async def get_user_wallets(self, user_id: int):
         return await self.session.query(Wallet).filter(Wallet.user_id == user_id).all()
+    
+    async def get_user_wallets(self, user_id: str):
+        try:
+            stmt = select(Wallet).where(Wallet.user_id == user_id)
+            result = await self.session.execute(stmt)
+            wallet = result.scalar_one_or_none()
+            return wallet        
+        except SQLAlchemyError as e:
+                raise e  # 
         

@@ -3,10 +3,11 @@ from typing import List
 from decimal import Decimal
 
 class WalletCreateDTO(BaseModel):
-    name: str
     balance: Decimal
+    currency_id: int
+    user_id: int
 
-class WalletOutDTO(WalletCreateDTO):
+class WalletOutDTO(BaseModel):
     id: int
     balance: Decimal
     currency_id: int
