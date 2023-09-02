@@ -3,8 +3,9 @@ from sqlalchemy.future import select
 from domain.models import Wallet
 from application.dtos.wallet_dto import WalletListDTO, WalletOutDTO
 from domain.repositories.wallet_repository import WalletRepository
+from decimal import Decimal
 
-async def create_wallet(session: AsyncSession, user_id: int, balance: float, currency_id: int):
+async def create_wallet(session: AsyncSession, user_id: int, balance: Decimal, currency_id: int):
     new_wallet = Wallet(user_id=user_id, balance=balance, currency_id=currency_id)
     session.add(new_wallet)
     await session.commit()

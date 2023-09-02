@@ -6,15 +6,12 @@ class UserCreateDTO(BaseModel):
     email: str
     password: str
 
-class UserOutDTO(UserCreateDTO):
+class UserOutDTO(BaseModel):
     id: int
-    username: str
-    email: str
 
 class UserListDTO(BaseModel):
     users: List[UserOutDTO]
 
 class UserUpdateDTO(BaseModel):
-    username: str
-    email: str
-    password: str
+    username: str = None
+    

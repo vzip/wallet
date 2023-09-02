@@ -1,13 +1,14 @@
 from pydantic import BaseModel
 from typing import List
+from decimal import Decimal
 
 class WalletCreateDTO(BaseModel):
     name: str
-    balance: float
+    balance: Decimal
 
 class WalletOutDTO(WalletCreateDTO):
     id: int
-    balance: float
+    balance: Decimal
     currency_id: int
 
 class WalletListDTO(BaseModel):

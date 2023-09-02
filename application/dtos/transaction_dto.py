@@ -1,9 +1,9 @@
 from pydantic import BaseModel
 from typing import List
-
+from decimal import Decimal
 class TransactionCreateDTO(BaseModel):
     wallet_id: int
-    amount: float
+    amount: Decimal
     type: str  # "debit" or "credit"
 
 class TransactionOutDTO(TransactionCreateDTO):
