@@ -17,8 +17,8 @@ class User(Base):
 class Wallet(Base):
     __tablename__ = 'wallets'
     id = Column(Integer, primary_key=True, index=True)
-    balance = Column(DECIMAL(precision=12, scale=2))
-    reserved_balance = Column(DECIMAL(precision=12, scale=2))
+    balance = Column(DECIMAL(precision=20, scale=10))
+    reserved_balance = Column(DECIMAL(precision=20, scale=10))
     currency_id = Column(Integer, ForeignKey('currencies.id'))
     user_id = Column(Integer, ForeignKey('users.id'))
     owner = relationship("User", back_populates="wallets")
@@ -31,16 +31,28 @@ class TransactionType(str, En):
     RELEASE = "release"
     WITHDRAW = "withdraw"
     DEPOSIT = "deposit"
+
+class TransactionStatus(str, En):
+    PROCESSING = "processing"
+    CLOSE = "close"
+    CANCEL = "cancel" 
     
 
 class Transaction(Base):
     __tablename__ = 'transactions'
     id = Column(Integer, primary_key=True, index=True)
-    amount = Column(DECIMAL(precision=12, scale=2)) 
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
     from_wallet_id = Column(Integer, ForeignKey('wallets.id'))
+    from_currency_id = Column(Integer, ForeignKey('currencies.id'))
+    amount = Column(DECIMAL(precision=20, scale=10)) 
     to_wallet_id = Column(Integer, ForeignKey('wallets.id'))
+    to_currency_id = Column(Integer, ForeignKey('currencies.id'))
+    rate = Column(DECIMAL(precision=20, scale=10))
+    converted_amount = Column(DECIMAL(precision=20, scale=10)) 
     type = Column(String(50))
+    status = Column(String(50))
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+    
 
 class Currency(Base):
     __tablename__ = 'currencies'
@@ -53,5 +65,7 @@ class ExchangeRate(Base):
     id = Column(Integer, primary_key=True, index=True)
     from_currency_id = Column(Integer, ForeignKey('currencies.id'))
     to_currency_id = Column(Integer, ForeignKey('currencies.id'))
-    rate = Column(Float)
+    rate = Column(DECIMAL(precision=20, scale=10))
+#reverse_rate = Column(DECIMAL(precision=20, scale=10))
+#timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
