@@ -3,10 +3,11 @@ from sqlalchemy import or_
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.models import User, Wallet
-from domain.repositories.user_repository import get_user_by_id, get_user_by_username
+from domain.repositories.user_repository import get_user_by_id, get_user_by_username, create_user
 from application.dtos.user_dto import UserCreateDTO, UserOutDTO, UserUpdateDTO
 from decimal import Decimal
 import jwt
+import uuid
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -18,28 +19,24 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = "YourSecretKey"  
 ALGORITHM = "HS256"
 
-def create_access_token(user_id: str):
+def create_access_token(user_id: uuid.UUID):
     logging.info(f"Create Token, user_id recieved to service: {user_id}")
     to_encode = {"sub": str(user_id)}
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def create_user(session: AsyncSession, user_dto: UserCreateDTO):
-    
+async def create_new_user(session: AsyncSession, user_dto: UserCreateDTO):
+
     # Check user exist
-    
     user = await get_user_by_username(session, user_dto.username)
     if user:
         return False
-    
     # If not exist, continue create new
     hashed_password = pwd_context.hash(user_dto.password)
-    new_user = User(username=user_dto.username, hashed_password=hashed_password, email=user_dto.email)
-    
-    session.add(new_user)
-    await session.flush()  # Getting ID befoe commit
-    await session.commit()
-    
+
+    new_user = await create_user(session, user_dto, hashed_password)
+    if not new_user:
+        return None
     return UserOutDTO(id=new_user.id, username=new_user.username, email=new_user.email)
 
 # Authenticate user
@@ -51,7 +48,7 @@ async def authenticate_user(session: AsyncSession, username: str, password: str)
     return UserOutDTO(id=exist_user.id)
 
 # Get user by ID
-async def get_user_by_id_from_token(session: AsyncSession, user_id: int):
+async def get_user_by_id_from_token(session: AsyncSession, user_id: uuid.UUID):
     user = await get_user_by_id(session, user_id)
     if not user:
         return None
@@ -68,7 +65,7 @@ async def verify_token(token: str):
         logging.info(f"User_id extract from token: {user_id}")
         if user_id is None:
             return None
-        user_id_int = int(user_id)
+        user_id_int = uuid.UUID(user_id)
         return user_id_int
     except jwt.ExpiredSignatureError as jE:
         logging.info(f"ExpiredSignatureError: {jE}")

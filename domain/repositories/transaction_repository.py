@@ -1,11 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import select, and_, or_, update
+from sqlalchemy import select, and_, or_, update, join
 from sqlalchemy import exc as sa_exc
 from domain.models import Wallet, Transaction, ExchangeRate, Currency
 from application.dtos.amount_dto import AmountOutDTO  
 from application.services.amount_service import round_decimal 
 from decimal import Decimal
+from datetime import datetime
+import uuid
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -17,9 +19,36 @@ async def handle_transaction(session, func, *args, **kwargs):
     except sa_exc.SQLAlchemyError as e:
         await session.rollback()
         return f"DB reject: {e}"
-         
 
-async def deposit_transaction(session, wallet_id: int, amount: Decimal, user_id: int):
+async def get_all_user_transaction_by_period(session, user_id: uuid.UUID):
+    try:
+        # Получаем все кошельки пользователя
+        stmt = select(Wallet.id).where(Wallet.user_id == user_id)
+        result = await session.execute(stmt)
+        wallet_ids = [row[0] for row in result.fetchall()]
+
+        # Если у пользователя нет кошельков, возвращаем пустой список
+        if not wallet_ids:
+            return []
+
+        # Получаем все транзакции для этих кошельков
+        stmt = select(Transaction).where(
+            or_(
+                Transaction.from_wallet_id.in_(wallet_ids),
+                Transaction.to_wallet_id.in_(wallet_ids)
+            )
+        ).order_by(Transaction.timestamp.desc())
+
+        result = await session.execute(stmt)
+        transactions = result.scalars().all()
+
+        return transactions if transactions else []
+    
+    except SQLAlchemyError as e:
+        logging.error(f"Error while fetching transactions: {e}")
+        raise e         
+
+async def deposit_transaction(session, wallet_id: uuid.UUID, amount: Decimal, user_id: uuid.UUID):
     try:
         logging.info(f"Amount in tansaction repository: {amount}, User Id: {user_id}")
         
@@ -33,7 +62,8 @@ async def deposit_transaction(session, wallet_id: int, amount: Decimal, user_id:
             amount=amount,
             from_wallet_id=None,
             to_wallet_id=wallet.id,
-            type="deposit"
+            type="deposit",
+            user_id=user_id
         )
 
         session.add(new_transaction)
@@ -77,9 +107,13 @@ async def convert_currency(session, amount: Decimal, from_currency: int, to_curr
     except SQLAlchemyError as e:
         raise e
 
-async def transfer_transaction(session, amount: Decimal, from_wallet_id: int, to_wallet_id: int):
+async def transfer_transaction(session, amount: Decimal, from_wallet_id: uuid.UUID, to_wallet_id: uuid.UUID, user_id: uuid.UUID):
     try:
-        stmt = select(Wallet).where(Wallet.id == from_wallet_id).with_for_update()
+        stmt = select(Wallet).\
+            where(
+                (Wallet.id == from_wallet_id) & 
+                (Wallet.user_id == user_id)
+            ).with_for_update()
         result = await session.execute(stmt)
         from_wallet = result.scalar_one()
 
@@ -118,7 +152,8 @@ async def transfer_transaction(session, amount: Decimal, from_wallet_id: int, to
             rate=exchange_rate.rate,
             converted_amount=converted_amount,
             type="transfer",
-            status="close"
+            status="close",
+            user_id=user_id
         )
         
         session.add(new_transaction)

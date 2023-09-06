@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List
+import uuid
 
 class UserCreateDTO(BaseModel):
     username: str
@@ -7,7 +8,7 @@ class UserCreateDTO(BaseModel):
     password: str
 
 class UserOutDTO(BaseModel):
-    id: int
+    id: uuid.UUID
 
 class UserListDTO(BaseModel):
     users: List[UserOutDTO]

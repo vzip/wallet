@@ -1,19 +1,45 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from domain.models import Wallet
+from domain.models import Wallet, Currency
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select, and_
+from decimal import Decimal
+import uuid
 import logging
 logging.basicConfig(level=logging.INFO)
 
-class WalletRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+async def create_wallets(session, user_id):
+        try:
+            logging.info(f"User ID received to wallet repository: {user_id}")
+            # Получаем все уникальные ID валют
+            currency_objs = await session.execute(select(Currency.id))
+            currency_ids = [c for c in currency_objs.scalars().all()]  
+
+            new_wallets = []
+            for currency_id in currency_ids:
+                new_wallet = Wallet(user_id=user_id, balance=Decimal("0.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id)
+                session.add(new_wallet)
+                new_wallets.append(new_wallet)
+
+            await session.flush()  # Получаем ID перед commit
+            await session.commit()
+            return new_wallets
+        except SQLAlchemyError as e:
+            logging.error(f"Error while creating wallets: {e}")
+            raise e
+    
+async def create_new_wallet(session, new_wallet):
+        try:
+            logging.info(f"User ID received to wallet repository: {new_wallet.user_id}")
+            new_wallet = Wallet(user_id=new_wallet.user_id, balance=new_wallet.balance, reserved_balance=new_wallet.reserved_balance, currency_id=new_wallet.currency_id)
+            session.add(new_wallet)
+            await session.flush()  # Getting ID befoe commit
+            await session.commit()
+            return new_wallet
+        except SQLAlchemyError as e:
+            raise e  # 
+
         
-    async def create_wallet(self, wallet: Wallet):
-        self.session.add(wallet)
-        await self.session.commit()
-        
-async def get_wallet_by_id(session, wallet_id: int, user_id: int):
+async def get_wallet_by_id(session, wallet_id: uuid.UUID, user_id: uuid.UUID):
     try:
         logging.info(f"Wallet Id in wallet repository: {wallet_id}, User Id: {user_id}")
         stmt = select(Wallet).where(
@@ -27,9 +53,10 @@ async def get_wallet_by_id(session, wallet_id: int, user_id: int):
         return wallet
     except SQLAlchemyError as e:
             raise e  # 
+            
 
     
-async def get_user_wallets(session, user_id: int):
+async def get_user_wallets(session, user_id: uuid.UUID):
     try:
         logging.info(f"User_id in wallet rerository: {user_id}")
         stmt = select(Wallet).where(Wallet.user_id == user_id)

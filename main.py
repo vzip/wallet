@@ -9,17 +9,15 @@ from application.dtos.amount_dto import AmountOutDTO
 from application.dtos.user_dto import UserCreateDTO, UserOutDTO, UserListDTO
 from application.dtos.wallet_dto import WalletCreateDTO, WalletOutDTO, WalletListDTO
 from application.dtos.transaction_dto import TransactionCreateDTO, TransactionListDTO, TransactionOutDTO
-from domain.repositories.user_repository import UserRepository, get_user_by_username
-from domain.repositories.wallet_repository import WalletRepository
 from decimal import Decimal, InvalidOperation
 from typing import List
+from datetime import datetime
 import re
+import uuid
 import logging
 
 
 logging.basicConfig(level=logging.INFO)
-
-
 
 # Init FastAPI
 app = FastAPI()
@@ -95,14 +93,14 @@ async def read_current_user(credentials: HTTPBasicCredentials = Depends(security
 # Auth through reg
 @app.post("/auth/register")
 async def register(user: UserCreateDTO, session: AsyncSession = Depends(get_db)):
-    user = await user_service.create_user(session, user)
+    user = await user_service.create_new_user(session, user)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    new_wallet = WalletCreateDTO(balance=0.02, currency_id=1, user_id=user.id)
-    wallet = await wallet_service.create_wallet(session, new_wallet)
+    # new_wallet = WalletCreateDTO(balance=0.000001, reserved_balance=0.000001, currency_id=1, user_id=user.id)
+    wallets = await wallet_service.create_wallets_for_all_currencies(session, user.id)
     logging.info(f"User id received in register: {user.id}")
     access_token = user_service.create_access_token(user.id)
-    return f"access_token: {access_token}, wallet: {wallet}"
+    return {"access_token": access_token} #wallets 
 
 # Auth through login
 @app.post("/auth/login")
@@ -116,21 +114,41 @@ async def login(username: str, password: str, session: AsyncSession = Depends(ge
 
 
 # Get wallets
-@app.get("/wallets", response_model=WalletListDTO)
+@app.get("/user/wallets", response_model=WalletListDTO)
 async def get_wallets(session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
     wallets = await wallet_service.get_wallets_by_user_id(session, current_user.id)
     return wallets
 
 # Get wallet
-@app.get("/wallet/get", response_model=WalletOutDTO)
-async def get_wallet(wallet_id: int, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
+@app.get("/user/wallet", response_model=WalletOutDTO)
+async def get_wallet(wallet_id: uuid.UUID, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
     logging.info(f"Wallet_id received in /wallet: {wallet_id}")
-    wallet = await wallet_service.get_wallet_by_wallet_id(session, wallet_id, current_user.id)
-    return wallet
+    try:
+        wallet = await wallet_service.get_wallet_by_wallet_id(session, wallet_id, current_user.id)
+        if wallet:
+            return wallet
+        else:
+            raise HTTPException()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str("Wrong wallet ID or it is not your wallet ID"))
+
+# Get transactions
+@app.get("/user/transactions", response_model=TransactionListDTO)
+async def get_user_transactions(session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
+    
+    logging.info(f"User_id received in /user/transactions: {current_user.id}")
+    try:
+        transactions = await transaction_service.get_all_user_transactions(session, current_user.id)
+        if transactions:
+            return transactions
+        else:
+            raise HTTPException()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str("No transactions"))
 
 # Make deposit
 @app.post("/wallet/deposit", response_model=WalletOutDTO)
-async def deposit_wallet(wallet_id: int, amount: Decimal = Query(..., alias="amount"),  session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
+async def deposit_wallet(wallet_id: uuid.UUID, amount: Decimal = Query(..., alias="amount"),  session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
     amount = ensure_decimal_places(amount, 10)
     logging.info(f"Serialized amount: {amount}")
     if amount <= Decimal(0.0000000001):
@@ -156,20 +174,23 @@ async def exchange_amount(from_currency: int, to_currency: int, amount: Decimal 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @app.post("/wallet/transfer")
-async def transfer_funds(source_wallet_id: int, target_wallet_id: int, amount: Decimal, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
+async def transfer_funds(source_wallet_id: uuid.UUID, target_wallet_id: uuid.UUID, amount: Decimal, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
     amount = ensure_decimal_places(amount, 10)
     logging.info(f"Serialized amount: {amount}")
+    logging.info(f"User id: {current_user.id}")
+    user_id = current_user.id
     if amount <= Decimal(0.0000000001):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid amount")
     if not isinstance(amount, Decimal):
         raise HTTPException(status_code=400, detail="Amount must be a decimal number")
     try:
-        return await transaction_service.transfer_funds_with_convertation(session, source_wallet_id, target_wallet_id, amount, current_user.id)
+        return await transaction_service.transfer_funds_with_convertation(session, source_wallet_id, target_wallet_id, amount, user_id)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(f"Rejected, source_wallet_id have different owner. {e}"))
+
 
 @app.post("/wallet/withdraw", response_model=WalletOutDTO)
-async def withdraw_funds(wallet_id: int, amount: Decimal, current_user: str = Depends(get_current_user)):
+async def withdraw_funds(wallet_id: uuid.UUID, amount: Decimal, current_user: str = Depends(get_current_user)):
     if amount <= 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid amount")
     if not isinstance(amount, Decimal):

@@ -1,14 +1,16 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
 from sqlalchemy import Enum as En
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from infrastructure.db.database import Base # infrastructure.db.database
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.types import DECIMAL
+import uuid
 
 class User(Base):
     __tablename__ = 'users'
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
@@ -16,13 +18,13 @@ class User(Base):
 
 class Wallet(Base):
     __tablename__ = 'wallets'
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
     balance = Column(DECIMAL(precision=20, scale=10))
     reserved_balance = Column(DECIMAL(precision=20, scale=10))
-    currency_id = Column(Integer, ForeignKey('currencies.id'))
-    user_id = Column(Integer, ForeignKey('users.id'))
+    currency_id = Column(Integer, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     owner = relationship("User", back_populates="wallets")
-    currency = relationship("Currency")
+   
 
 
 class TransactionType(str, En):
@@ -40,17 +42,18 @@ class TransactionStatus(str, En):
 
 class Transaction(Base):
     __tablename__ = 'transactions'
-    id = Column(Integer, primary_key=True, index=True)
-    from_wallet_id = Column(Integer, ForeignKey('wallets.id'))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    from_wallet_id = Column(UUID(as_uuid=True), ForeignKey('wallets.id'))
     from_currency_id = Column(Integer, ForeignKey('currencies.id'))
     amount = Column(DECIMAL(precision=20, scale=10)) 
-    to_wallet_id = Column(Integer, ForeignKey('wallets.id'))
+    to_wallet_id = Column(UUID(as_uuid=True), ForeignKey('wallets.id'))
     to_currency_id = Column(Integer, ForeignKey('currencies.id'))
     rate = Column(DECIMAL(precision=20, scale=10))
     converted_amount = Column(DECIMAL(precision=20, scale=10)) 
     type = Column(String(50))
     status = Column(String(50))
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
 
     
 

@@ -2,25 +2,45 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from domain.models import Wallet
 from application.dtos.wallet_dto import WalletListDTO, WalletOutDTO, WalletCreateDTO
-from domain.repositories.wallet_repository import get_user_wallets, get_wallet_by_id
+from domain.repositories.wallet_repository import get_user_wallets, get_wallet_by_id, create_new_wallet, create_wallets
 from decimal import Decimal
 from pydantic import parse_obj_as
 from typing import List
+import uuid
 import logging
 logging.basicConfig(level=logging.INFO)
 
 async def create_wallet(session: AsyncSession, new_wallet: WalletCreateDTO):
-    new_wallet = Wallet(user_id=new_wallet.user_id, balance=new_wallet.balance, currency_id=new_wallet.currency_id)
-    session.add(new_wallet)
-    await session.flush() 
-    await session.commit()
+    
+    new_wallet = await create_new_wallet(session, new_wallet)
+    if not new_wallet:
+        return None
     return WalletOutDTO(
         id=new_wallet.id,
         balance=new_wallet.balance,
-        currency_id=new_wallet.currency_id
+        currency_id=new_wallet.currency_id,
+        reserved_balance=new_wallet.reserved_balance,
+        user_id=new_wallet.user_id
     )
 
-async def get_wallet_by_wallet_id(session: AsyncSession, wallet_id: int, user_id: int):
+async def create_wallets_for_all_currencies(session: AsyncSession, user_id: uuid.UUID):
+    new_wallets = await create_wallets(session, user_id)
+    if not new_wallets:
+        return None    
+
+    return WalletListDTO(wallets=[
+        WalletOutDTO(
+            id=w.id,
+            balance=w.balance,
+            reserved_balance=w.reserved_balance,
+            currency_id=w.currency_id,
+            user_id=w.user_id
+        ) for w in new_wallets
+    ])
+
+
+
+async def get_wallet_by_wallet_id(session: AsyncSession, wallet_id: uuid.UUID, user_id: uuid.UUID):
     wallet = await get_wallet_by_id(session, wallet_id, user_id)
     logging.info(f"Wallet in service: {wallet}")
     if not wallet:
@@ -30,11 +50,11 @@ async def get_wallet_by_wallet_id(session: AsyncSession, wallet_id: int, user_id
         balance=wallet.balance,
         reserved_balance=wallet.reserved_balance,
         currency_id=wallet.currency_id,
-        user_id=wallet.user_id,
+        user_id=wallet.user_id
     )
 
 
-async def get_wallets_by_user_id(session: AsyncSession, user_id: int):
+async def get_wallets_by_user_id(session: AsyncSession, user_id: uuid.UUID):
     
     wallets = await get_user_wallets(session, user_id)
     logging.info(f"Wallets in service: {wallets}")
