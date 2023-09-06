@@ -25,7 +25,7 @@
   
 ### Транзакции и Операции
 
-- `GET /user/transactions`: Получение истории транзакций текущего пользователя. *BUG need to fix, currently this method not work
+- `GET /user/transactions`: Получение истории транзакций текущего пользователя. *BUG need to fix, currently this method not work * Currently not work. Founded BUG. Fixing.
 - `GET /wallet/transactions`: Получение истории транзакций конкретного кошелька.
 - `POST /wallet/deposit`: Внесение средств на кошелек. (без подтверждения)
 - `POST /wallet/exchange`: Обмен валют с учетом текущего курса. Разрядность 10 знаков после точки.
