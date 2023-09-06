@@ -146,6 +146,20 @@ async def get_user_transactions(session: AsyncSession = Depends(get_db), current
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str("No transactions"))
 
+# Get transactions
+@app.get("/wallet/transactions", response_model=TransactionListDTO)
+async def get_wallet_transactions(wallet_id: uuid.UUID, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
+    
+    logging.info(f"User_id received in /wallet/transactions: {current_user.id}")
+    try:
+        transactions = await transaction_service.get_user_transactions_by_wallet_id(session, wallet_id, current_user.id)
+        if transactions:
+            return transactions
+        else:
+            raise HTTPException()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str("No transactions"))
+
 # Make deposit
 @app.post("/wallet/deposit", response_model=WalletOutDTO)
 async def deposit_wallet(wallet_id: uuid.UUID, amount: Decimal = Query(..., alias="amount"),  session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
@@ -184,7 +198,7 @@ async def transfer_funds(source_wallet_id: uuid.UUID, target_wallet_id: uuid.UUI
     if not isinstance(amount, Decimal):
         raise HTTPException(status_code=400, detail="Amount must be a decimal number")
     try:
-        return await transaction_service.transfer_funds_with_convertation(session, source_wallet_id, target_wallet_id, amount, user_id)
+        return await transaction_service.transfer_funds_with_convertation(session, amount, source_wallet_id, target_wallet_id, user_id)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(f"Rejected, source_wallet_id have different owner. {e}"))
 

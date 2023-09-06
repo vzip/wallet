@@ -3,7 +3,7 @@ from sqlalchemy.future import select
 from domain.models import Wallet, Transaction, ExchangeRate
 from application.dtos.wallet_dto import WalletOutDTO
 from application.dtos.transaction_dto import TransactionOutDTO, TransactionListDTO
-from domain.repositories.transaction_repository import deposit_transaction, convert_currency, transfer_transaction, get_all_user_transaction_by_period
+from domain.repositories.transaction_repository import deposit_transaction, convert_currency, transfer_transaction, get_all_transactions, get_transactions_by_wallet_id
 from sqlalchemy import update
 from decimal import Decimal
 from pydantic import parse_obj_as
@@ -14,7 +14,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 
-async def transfer_funds_with_convertation(session: AsyncSession, from_wallet_id: uuid.UUID, to_wallet_id: uuid.UUID, amount: Decimal, user_id: uuid.UUID):
+async def transfer_funds_with_convertation(session: AsyncSession, amount: Decimal, from_wallet_id: uuid.UUID, to_wallet_id: uuid.UUID, user_id: uuid.UUID):
     transaction_res = await transfer_transaction(session, amount, from_wallet_id, to_wallet_id, user_id)
     logging.info(f"Exchange results in exchange service: {amount}")
     if not transaction_res:
@@ -35,7 +35,7 @@ async def deposit_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: Dec
     )
 
 async def get_all_user_transactions(session: AsyncSession, user_id):
-    transactions = await get_all_user_transaction_by_period(session, user_id)
+    transactions = await get_all_transactions(session, user_id)
     logging.info(f"User ID in transaction service: {user_id}")
     if not transactions:
         return None
@@ -53,9 +53,27 @@ async def get_all_user_transactions(session: AsyncSession, user_id):
         transaction_dtos = []
         for transaction in transactions:
             dto = TransactionOutDTO.from_orm(transaction)
-            dto_dict = dto.dict(exclude={'wallet_id'})  # Исключаем поле wallet_id
-            transaction_dtos.append(TransactionOutDTO(**dto_dict))  # Создаем новый объект DTO без wallet_id
+            dto_dict = dto.dict(exclude={'wallet_id'})
+            transaction_dtos.append(TransactionOutDTO(**dto_dict))  
+    except Exception as e:
+        print(f"Error during parsing: {e}")
+    return TransactionListDTO(transactions=transaction_dtos)
 
+async def get_user_transactions_by_wallet_id(session: AsyncSession, wallet_id, user_id):
+    transactions = await get_transactions_by_wallet_id(session, wallet_id, user_id)
+    logging.info(f"User ID in transaction service: {user_id}")
+    if not transactions:
+        return None
+    # Преобразование объектов SQLAlchemy в словари 
+    transaction_dicts = [
+        {key: value for key, value in transaction.__dict__.items() if not key.startswith('_sa_')}
+        for transaction in transactions
+    ]
+    logging.info(f"Tansaction Dicts in transaction service: {transaction_dicts}")
+    
+    try:
+        # Преобразование словарей в объекты TransactionOutDTO
+        transaction_dtos = parse_obj_as(List[TransactionOutDTO], transaction_dicts)   
     except Exception as e:
         print(f"Error during parsing: {e}")
     return TransactionListDTO(transactions=transaction_dtos)
