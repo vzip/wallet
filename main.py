@@ -4,7 +4,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from infrastructure.db.database import create_tables, get_db
-from application.services import user_service, transaction_service, wallet_service, exchange_service
+from application.services import user_service, transaction_service, wallet_service, exchange_service, payment_service
 from application.dtos.amount_dto import AmountOutDTO
 from application.dtos.user_dto import UserCreateDTO, UserOutDTO, UserListDTO
 from application.dtos.wallet_dto import WalletCreateDTO, WalletOutDTO, WalletListDTO
@@ -71,6 +71,20 @@ async def get_current_user(token: str = Depends(get_token), session: AsyncSessio
     except Exception as e:
         logging.error(f"Error: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
+# Check token and service_user   
+async def get_current_service_user(token: str = Depends(get_token), session: AsyncSession = Depends(get_db)):
+    try:
+        logging.info(f"Token received: {token}")
+        user_id = await user_service.verify_token(token)
+        # Checking user existance
+        current_user = await user_service.get_service_user_by_id_from_token(session, user_id)
+        if current_user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        return current_user
+    except Exception as e:
+        logging.error(f"Error: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))    
 
 # Get user by token
 @app.get("/user/get/id", response_model=UserOutDTO)
@@ -184,7 +198,7 @@ async def deposit_wallet(service_user_id: uuid.UUID, wallet_id: uuid.UUID, amoun
     try:
         return await transaction_service.deposit_funds(session, wallet_id, amount, current_user.id, service_user_id)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))    
 
 @app.post("/wallet/exchange", response_model=AmountOutDTO)
 async def exchange_amount(from_currency: int, to_currency: int, amount: Decimal = Query(..., alias="amount"),  session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
@@ -214,7 +228,6 @@ async def transfer_funds(source_wallet_id: uuid.UUID, target_wallet_id: uuid.UUI
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(f"Rejected, source_wallet_id have different owner. {e}"))
 
-
 @app.post("/wallet/withdraw", response_model=WalletOutDTO)
 async def withdraw_funds(wallet_id: uuid.UUID, amount: Decimal, current_user: str = Depends(get_current_user)):
     if amount <= 0:
@@ -225,6 +238,15 @@ async def withdraw_funds(wallet_id: uuid.UUID, amount: Decimal, current_user: st
         return await transaction_service.withdraw_funds(current_user.id, wallet_id, amount)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+# Update transactions by service user
+@app.put("/service/transaction", response_model=TransactionOutDTO)
+async def update_service_transaction_status(transaction_id: uuid.UUID, new_status: str, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_service_user)):
+    try:
+        return await payment_service.update_service_transaction(session, transaction_id, new_status, current_user.id)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))  
+
 
 # ... next methods transactions
 

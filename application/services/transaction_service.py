@@ -49,45 +49,14 @@ async def get_all_user_transactions(session: AsyncSession, user_id):
     logging.info(f"User ID in transaction service: {user_id}")
     if not transactions:
         return None
-    # Преобразование объектов SQLAlchemy в словари 
-    """ transaction_dicts = [
-        {key: value for key, value in transaction.__dict__.items() if not key.startswith('_sa_')}
-        for transaction in transactions
-    ]
-    logging.info(f"Tansaction Dicts in transaction service: {transaction_dicts}")
-    
-    try:
-        # Преобразование словарей в объекты TransactionOutDTO
-        transaction_dtos = parse_obj_as(List[TransactionOutDTO], transaction_dicts)
-        # Преобразование объектов SQLAlchemy в объекты Pydantic
-        # transaction_dtos = []
-        #  for transaction in transactions:
-        #    dto = TransactionOutDTO.from_orm(transaction)
-        #    dto_dict = dto.dict(exclude={'wallet_id'})
-        #    transaction_dtos.append(TransactionOutDTO(**dto_dict))  
-    except Exception as e:
-        print(f"Error during parsing: {e}") """
-    return transactions # TransactionListDTO(transactions=transaction_dtos)
+    return transactions 
 
 async def get_user_transactions_by_wallet_id(session: AsyncSession, wallet_id, user_id):
     transactions = await get_transactions_by_wallet_id(session, wallet_id, user_id)
     logging.info(f"User ID in transaction service: {user_id}")
     if not transactions:
         return None
-    """ # Преобразование объектов SQLAlchemy в словари 
-    transaction_dicts = [
-        {key: value for key, value in transaction.__dict__.items() if not key.startswith('_sa_')}
-        for transaction in transactions
-    ]
-    logging.info(f"Tansaction Dicts in transaction service: {transaction_dicts}") """
-    
-    #try:
-        # Преобразование словарей в объекты TransactionOutDTO
-        # transaction_dtos = parse_obj_as(List[TransactionOutDTO], transaction_dicts)  
-         
-    #except Exception as e:
-       # print(f"Error during parsing: {e}")
-    return transactions # TransactionListDTO(transactions=transaction_dtos)
+    return transactions 
 
     
 async def withdraw_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: Decimal):

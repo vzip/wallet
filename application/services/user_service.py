@@ -3,7 +3,7 @@ from sqlalchemy import or_
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from domain.models import User, Wallet
-from domain.repositories.user_repository import get_user_by_id, get_user_by_username, create_user, get_service_user_by_username, create_service_user
+from domain.repositories.user_repository import get_user_by_id, get_user_by_username, create_user, get_service_user_by_username, create_service_user, get_service_user_by_id
 from application.dtos.user_dto import UserCreateDTO, UserOutDTO, UserUpdateDTO
 from decimal import Decimal
 import jwt
@@ -66,6 +66,13 @@ async def authenticate_user(session: AsyncSession, username: str, password: str)
 # Get user by ID
 async def get_user_by_id_from_token(session: AsyncSession, user_id: uuid.UUID):
     user = await get_user_by_id(session, user_id)
+    if not user:
+        return None
+    return UserOutDTO(id=user.id, username=user.username)
+
+# Get service user by ID
+async def get_service_user_by_id_from_token(session: AsyncSession, user_id: uuid.UUID):
+    user = await get_service_user_by_id(session, user_id)
     if not user:
         return None
     return UserOutDTO(id=user.id, username=user.username)

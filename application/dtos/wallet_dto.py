@@ -24,3 +24,20 @@ class WalletListDTO(BaseModel):
     
     class Config:
         json_encoders = {Decimal: lambda v: str(v)}
+
+class ServiceWalletOutDTO(BaseModel):
+    id: uuid.UUID
+    balance: Decimal
+    reserved_balance: Decimal
+    currency_id: int
+    commission_rate: Decimal
+    user_id: uuid.UUID
+
+    class Config:
+        json_encoders = {Decimal: lambda v: str(v)}
+
+class ServiceWalletListDTO(BaseModel):
+    wallets: List[ServiceWalletOutDTO]
+    
+    class Config:
+        json_encoders = {Decimal: lambda v: str(v)}        

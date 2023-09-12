@@ -40,6 +40,16 @@ async def get_user_by_id(session: AsyncSession, user_id: uuid.UUID):
             return user        
         except SQLAlchemyError as e:
             raise e  # 
+
+async def get_service_user_by_id(session: AsyncSession, user_id: uuid.UUID):
+        try:
+            logging.info(f"User_id received to repository: {user_id}")
+            stmt = select(ServiceUser).where(ServiceUser.id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+            return user        
+        except SQLAlchemyError as e:
+            raise e  #         
         
 async def get_user_by_username(session: AsyncSession, username: str):
     try:

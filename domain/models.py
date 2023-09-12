@@ -6,7 +6,9 @@ from sqlalchemy.sql import func
 from infrastructure.db.database import Base # infrastructure.db.database
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.types import DECIMAL
+from sqlalchemy.ext.declarative import declared_attr
 import uuid
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -40,6 +42,7 @@ class ServiceWallet(Base):
     balance = Column(DECIMAL(precision=20, scale=10))
     reserved_balance = Column(DECIMAL(precision=20, scale=10))
     currency_id = Column(Integer, index=True)
+    commission_rate = Column(DECIMAL(precision=20, scale=10), nullable=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('service_users.id'))
     owner = relationship("ServiceUser", back_populates="service_wallets")   
 
@@ -69,17 +72,32 @@ class TransactionStatus(str, En):
 class Transaction(Base):
     __tablename__ = 'transactions'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
-    from_wallet_id = Column(UUID(as_uuid=True), ForeignKey('wallets.id'))
+    from_wallet_id = Column(UUID(as_uuid=True), nullable=False)
     from_currency_id = Column(Integer, ForeignKey('currencies.id'))
     amount = Column(DECIMAL(precision=20, scale=10)) 
-    to_wallet_id = Column(UUID(as_uuid=True), ForeignKey('wallets.id'))
+    to_wallet_id = Column(UUID(as_uuid=True), nullable=False)
     to_currency_id = Column(Integer, ForeignKey('currencies.id'))
     rate = Column(DECIMAL(precision=20, scale=10))
     converted_amount = Column(DECIMAL(precision=20, scale=10)) 
     type = Column(String(50))
     status = Column(String(50))
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+
+class ServiceTransaction(Base):
+    __tablename__ = 'service_transactions'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    from_wallet_id = Column(UUID(as_uuid=True), nullable=False)
+    from_currency_id = Column(Integer, ForeignKey('currencies.id'))
+    amount = Column(DECIMAL(precision=20, scale=10)) 
+    to_wallet_id = Column(UUID(as_uuid=True), nullable=False)
+    to_currency_id = Column(Integer, ForeignKey('currencies.id'))
+    rate = Column(DECIMAL(precision=20, scale=10))
+    converted_amount = Column(DECIMAL(precision=20, scale=10)) 
+    type = Column(String(50))
+    status = Column(String(50))
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('service_users.id'))    
 
 
 class PendingTransaction(Base):

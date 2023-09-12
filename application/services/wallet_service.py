@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from domain.models import Wallet
-from application.dtos.wallet_dto import WalletListDTO, WalletOutDTO, WalletCreateDTO
+from application.dtos.wallet_dto import WalletListDTO, WalletOutDTO, WalletCreateDTO, ServiceWalletOutDTO, ServiceWalletListDTO
 from domain.repositories.wallet_repository import get_user_wallets, get_wallet_by_id, create_new_wallet, create_wallets, create_service_wallets, create_external_wallets
 from decimal import Decimal
 from pydantic import parse_obj_as
@@ -44,12 +44,13 @@ async def create_service_wallets_for_all_currencies(session: AsyncSession, user_
     if not new_wallets:
         return None    
 
-    return WalletListDTO(wallets=[
-        WalletOutDTO(
+    return ServiceWalletListDTO(wallets=[
+        ServiceWalletOutDTO(
             id=w.id,
             balance=w.balance,
             reserved_balance=w.reserved_balance,
             currency_id=w.currency_id,
+            commission_rate=w.commission_rate,
             user_id=w.user_id
         ) for w in new_wallets
     ])

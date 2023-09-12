@@ -32,6 +32,7 @@ class UserCreateDTO(BaseModel):
     
 class UserOutDTO(BaseModel):
     id: uuid.UUID
+    
 
 class UserListDTO(BaseModel):
     users: List[UserOutDTO]

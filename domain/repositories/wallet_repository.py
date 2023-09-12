@@ -36,7 +36,7 @@ async def create_service_wallets(session, user_id):
 
             new_wallets = []
             for currency_id in currency_ids:
-                new_wallet = ServiceWallet(user_id=user_id, balance=Decimal("0.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id)
+                new_wallet = ServiceWallet(user_id=user_id, balance=Decimal("0.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id, commission_rate=Decimal("0.01"))
                 session.add(new_wallet)
                 new_wallets.append(new_wallet)
 
@@ -94,6 +94,21 @@ async def get_wallet_by_id(session, wallet_id: uuid.UUID, user_id: uuid.UUID):
         return wallet
     except SQLAlchemyError as e:
             raise e  # 
+    
+async def get_service_wallet_by_id(session, wallet_id: uuid.UUID, user_id: uuid.UUID):
+    try:
+        logging.info(f"Wallet Id in wallet repository: {wallet_id}, User Id: {user_id}")
+        stmt = select(ServiceWallet).where(
+            and_(
+                ServiceWallet.id == wallet_id,
+                ServiceWallet.user_id == user_id
+            )
+        )
+        result = await session.execute(stmt)
+        wallet = result.scalar_one_or_none()
+        return wallet
+    except SQLAlchemyError as e:
+            raise e  #     
             
 
     
