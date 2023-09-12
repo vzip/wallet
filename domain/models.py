@@ -16,6 +16,15 @@ class User(Base):
     hashed_password = Column(String)
     wallets = relationship("Wallet", back_populates="owner")
 
+class ServiceUser(Base):
+    __tablename__ = 'service_users'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    service_wallets = relationship("ServiceWallet", back_populates="owner")
+    external_wallets = relationship("ExternalWallet", back_populates="owner")    
+
 class Wallet(Base):
     __tablename__ = 'wallets'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
@@ -24,7 +33,24 @@ class Wallet(Base):
     currency_id = Column(Integer, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     owner = relationship("User", back_populates="wallets")
-   
+
+class ServiceWallet(Base):
+    __tablename__ = 'service_wallets'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    balance = Column(DECIMAL(precision=20, scale=10))
+    reserved_balance = Column(DECIMAL(precision=20, scale=10))
+    currency_id = Column(Integer, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('service_users.id'))
+    owner = relationship("ServiceUser", back_populates="service_wallets")   
+
+class ExternalWallet(Base):
+    __tablename__ = 'external_wallets'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    balance = Column(DECIMAL(precision=20, scale=10))
+    reserved_balance = Column(DECIMAL(precision=20, scale=10))
+    currency_id = Column(Integer, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('service_users.id'))
+    owner = relationship("ServiceUser", back_populates="external_wallets")       
 
 
 class TransactionType(str, En):
@@ -54,6 +80,25 @@ class Transaction(Base):
     status = Column(String(50))
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+
+
+class PendingTransaction(Base):
+    # ... (остальные поля)
+    __tablename__ = 'pending_transactions'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    from_wallet_id = Column(UUID(as_uuid=True), ForeignKey('service_wallets.id'))
+    from_currency_id = Column(Integer, ForeignKey('currencies.id'))
+    amount = Column(DECIMAL(precision=20, scale=10)) 
+    to_wallet_id = Column(UUID(as_uuid=True), ForeignKey('wallets.id'))
+    to_currency_id = Column(Integer, ForeignKey('currencies.id'))
+    rate = Column(DECIMAL(precision=20, scale=10))
+    converted_amount = Column(DECIMAL(precision=20, scale=10)) 
+    type = Column(String(50))
+    status = Column(String(50))
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    external_wallet_id = Column(UUID(as_uuid=True), ForeignKey('external_wallets.id'))
+    external_transaction_id = Column(UUID(as_uuid=True), unique=True)
 
     
 
