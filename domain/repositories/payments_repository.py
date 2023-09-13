@@ -49,7 +49,8 @@ async def update_transaction(session, transaction_id: uuid.UUID, new_status: str
             service_wallet_stmt = select(ServiceWallet).where(ServiceWallet.id == pending_transaction.from_wallet_id)
             service_wallet_result = await session.execute(service_wallet_stmt)
             service_wallet = service_wallet_result.scalar_one_or_none()
-            service_wallet.balance += pending_transaction.amount
+
+            service_wallet.balance += pending_transaction.converted_amount
             
             if not service_wallet:
                 return {"status": "service_wallet_not_found"}
@@ -65,9 +66,7 @@ async def update_transaction(session, transaction_id: uuid.UUID, new_status: str
             if not to_wallet:
                 return {"status": "target_wallet_not_found"}
 
-            to_wallet.balance += pending_transaction.converted_amount
-
-            # Создаем новую транзакцию в основных транзакциях для фиксирования перевода с external на service_wallet
+            # Создаем новую транзакцию в cервисных транзакциях для фиксирования перевода с external на service_wallet
             new_transaction_service = ServiceTransaction(
                 from_wallet_id=pending_transaction.external_wallet_id,  # ID внешнего кошелька
                 from_currency_id=pending_transaction.from_currency_id,
@@ -83,7 +82,7 @@ async def update_transaction(session, transaction_id: uuid.UUID, new_status: str
             session.add(new_transaction_service)
             
             # Списываем сумму с service_wallet
-            service_wallet.balance -= pending_transaction.amount
+            service_wallet.balance -= pending_transaction.converted_amount
 
             # Создаем новую транзакцию в основных транзакциях для перевода на кошелек пользователя
             new_transaction_user = Transaction(
@@ -100,9 +99,8 @@ async def update_transaction(session, transaction_id: uuid.UUID, new_status: str
             )
             session.add(new_transaction_user)
 
-            # Вычитаем сумму комиссии и насиляем ее на сервисный кошелек:
-            to_wallet.balance -= commission_amount
-            service_wallet.balance += commission_amount
+            # Начисляем сумму на target wallet
+            to_wallet.balance += pending_transaction.converted_amount
 
             # Создаем транзакцию комиссии:
             commission_transaction = Transaction(
@@ -115,9 +113,13 @@ async def update_transaction(session, transaction_id: uuid.UUID, new_status: str
                 converted_amount=commission_amount,
                 type="commission",
                 status="close",
-                user_id=to_wallet.user_id
+                user_id=service_wallet.user_id
             )
             session.add(commission_transaction)
+
+            # Вычитаем сумму комиссии c target wallet и начисляем ее на сервисный кошелек:
+            to_wallet.balance -= commission_amount
+            service_wallet.balance += commission_amount
 
 
         elif new_status == 'rejected':

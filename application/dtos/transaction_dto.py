@@ -46,8 +46,8 @@ class PendingTransactionOutDTO(BaseModel):
     status: Optional[str] = Field(None, allow_none=True)
     timestamp: datetime
     user_id: uuid.UUID
-    external_wallet_id: Optional[uuid.UUID] = Field(None, allow_none=True)
-    external_transaction_id: Optional[uuid.UUID] = Field(None, allow_none=True)
+# external_wallet_id: Optional[uuid.UUID] = Field(None, allow_none=True)
+# external_transaction_id: Optional[uuid.UUID] = Field(None, allow_none=True)
 
     class Config:
         orm_mode = True
