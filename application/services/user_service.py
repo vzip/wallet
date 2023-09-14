@@ -63,6 +63,14 @@ async def authenticate_user(session: AsyncSession, username: str, password: str)
         return False
     return UserOutDTO(id=exist_user.id)
 
+# Authenticate service user
+async def authenticate_service_user(session: AsyncSession, username: str, password: str):
+   
+    exist_user = await get_service_user_by_username(session, username)
+    if not exist_user or not pwd_context.verify(password, exist_user.hashed_password):
+        return False
+    return UserOutDTO(id=exist_user.id)
+
 # Get user by ID
 async def get_user_by_id_from_token(session: AsyncSession, user_id: uuid.UUID):
     user = await get_user_by_id(session, user_id)

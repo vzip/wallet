@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select, and_, or_, update, join
 from sqlalchemy import exc as sa_exc
-from domain.models import Wallet, Transaction, ExchangeRate, Currency, ServiceWallet, PendingTransaction, ExternalWallet
+from domain.models import Wallet, Transaction, ExchangeRate, Currency, ServiceWallet, PendingTransaction, ExternalWallet, UserExternalWallet
 from application.dtos.amount_dto import AmountOutDTO  
 from application.dtos.transaction_dto import CombinedTransactionListDTO
 from application.services.amount_service import round_decimal 
@@ -197,6 +197,72 @@ async def create_pending_deposit(session, wallet_id: uuid.UUID, amount: Decimal,
     except SQLAlchemyError as e:
         await session.rollback()
         raise e
+
+async def create_pending_withdraw(session, wallet_id: uuid.UUID, amount: Decimal, user_id: uuid.UUID, service_user_id: uuid.UUID):
+    try:
+
+        # Найти кошелек пользователя
+        stmt = select(Wallet).where(Wallet.id == wallet_id)
+        result = await session.execute(stmt)
+        user_wallet = result.scalar_one_or_none()
+
+        if not user_wallet:
+            return {"status": "wallet_not_found"}
+
+        # Найти сервисный кошелек с той же валютой
+        stmt = select(UserExternalWallet).where(
+            UserExternalWallet.currency_id == user_wallet.currency_id,
+            UserExternalWallet.user_id == user_id  # Добавлено условие
+        )
+        result = await session.execute(stmt)
+        user_ext_wallet = result.scalar_one_or_none()
+
+        if not user_ext_wallet:
+            return {"status": "user_ext_wallet_not_found"}
+
+        # Найти внешнй сервисный кошелек с той же валютой
+        stmt = select(ExternalWallet).where(
+            ExternalWallet.currency_id == user_wallet.currency_id,
+            ExternalWallet.user_id == service_user_id  # Добавлено условие
+        )
+        result = await session.execute(stmt)
+        external_wallet = result.scalar_one_or_none()
+
+        if not external_wallet:
+            return {"status": "external_wallet_not_found"}
+
+        if amount >= external_wallet.balance:
+            return {"status": "external_wallet_balance_lower_than_withdraw_amount"}
+        
+        # Получаем идентификатор от "внешнего" API
+        external_transaction_id = await mock_external_payment_api()
+
+        if not external_transaction_id:
+            return {"status": "external_wallet_not_responding"}
+
+        # Создать запись в pending_transactions
+        pending_transaction = PendingTransaction(
+            from_wallet_id=user_wallet.id,
+            from_currency_id=user_wallet.currency_id,
+            amount=amount,
+            to_wallet_id=user_ext_wallet.id,
+            to_currency_id=user_ext_wallet.currency_id,
+            rate=1.0,
+            converted_amount=amount,
+            type="withdraw",
+            status="pending",
+            user_id=user_id,
+            external_wallet_id=external_wallet.id,
+            external_transaction_id=external_transaction_id
+        )
+        session.add(pending_transaction)
+        await session.commit()
+
+        return pending_transaction
+
+    except SQLAlchemyError as e:
+        await session.rollback()
+        raise e    
 
 async def convert_currency(session, amount: Decimal, from_currency: int, to_currency: int):
     try:

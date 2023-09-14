@@ -9,6 +9,11 @@ class WalletCreateDTO(BaseModel):
     reserved_balance: Decimal
     user_id: uuid.UUID
 
+class UserExtWalletCreateDTO(BaseModel):
+    wallet_name = str
+    currency_id = int
+    user_id = uuid.UUID
+    
 class WalletOutDTO(BaseModel):
     id: uuid.UUID
     balance: Decimal

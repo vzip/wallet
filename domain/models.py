@@ -17,6 +17,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     wallets = relationship("Wallet", back_populates="owner")
+    user_external_wallets = relationship("UserExternalWallet", back_populates="owner")
 
 class ServiceUser(Base):
     __tablename__ = 'service_users'
@@ -35,6 +36,32 @@ class Wallet(Base):
     currency_id = Column(Integer, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     owner = relationship("User", back_populates="wallets")
+
+class UserExternalWallet(Base):
+    __tablename__ = 'user_external_wallets'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    wallet_name = Column(String, nullable=False)
+    amount_withdraw = Column(DECIMAL(precision=20, scale=10))
+    currency_id = Column(Integer, index=True)
+    card_id = Column(UUID(as_uuid=True), nullable=True) 
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    owner = relationship("User", back_populates="user_external_wallets")
+    
+
+class UserExternalCards(Base):
+    __tablename__ = 'user_external_cards'
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    card_name = Column(String, nullable=False)
+    currency_id = Column(Integer, index=True)
+    bank_name = Column(String, nullable=False)
+    card_name_holder = Column(String, nullable=False)
+    card_16_digits = Column(String, nullable=False)
+    card_expire_month = Column(Integer, nullable=False)
+    card_expire_year = Column(Integer, nullable=False)
+    card_type_provider = Column(String, nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    user_external_wallet_id = Column(UUID(as_uuid=True), ForeignKey('user_external_wallets.id'))
+
 
 class ServiceWallet(Base):
     __tablename__ = 'service_wallets'

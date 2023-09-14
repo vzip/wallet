@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from domain.models import Wallet
-from application.dtos.wallet_dto import WalletListDTO, WalletOutDTO, WalletCreateDTO, ServiceWalletOutDTO, ServiceWalletListDTO
-from domain.repositories.wallet_repository import get_user_wallets, get_wallet_by_id, create_new_wallet, create_wallets, create_service_wallets, create_external_wallets
+from application.dtos.wallet_dto import WalletListDTO, WalletOutDTO, WalletCreateDTO, ServiceWalletOutDTO, ServiceWalletListDTO, UserExtWalletCreateDTO
+from domain.repositories.wallet_repository import get_user_wallets, get_wallet_by_id, create_new_wallet, create_wallets, create_service_wallets, create_external_wallets, create_new_ext_wallet
 from decimal import Decimal
 from pydantic import parse_obj_as
 from typing import List
@@ -22,6 +22,13 @@ async def create_wallet(session: AsyncSession, new_wallet: WalletCreateDTO):
         reserved_balance=new_wallet.reserved_balance,
         user_id=new_wallet.user_id
     )
+
+async def create_ext_wallet(session: AsyncSession, wallet_name: str, currency_id: int, user_id: uuid.UUID):
+    
+    new_ext_wallet = await create_new_ext_wallet(session, wallet_name, currency_id, user_id)
+    if not new_ext_wallet:
+        return None
+    return new_ext_wallet
 
 async def create_wallets_for_all_currencies(session: AsyncSession, user_id: uuid.UUID):
     new_wallets = await create_wallets(session, user_id)
