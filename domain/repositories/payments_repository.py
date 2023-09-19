@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select, and_, or_, update, join
 from sqlalchemy import exc as sa_exc
-from domain.models import Wallet, Transaction, ExchangeRate, Currency, ServiceWallet, PendingTransaction, ServiceUser, ServiceTransaction
+from domain.models import Wallet, Transaction, ExchangeRate, Currency, ServiceWallet, PendingTransaction, ServiceUser, ServiceTransaction, ExternalWallet
 from application.dtos.amount_dto import AmountOutDTO  
 from application.services.amount_service import round_decimal 
 from domain.repositories.wallet_repository import get_wallet_by_id, get_service_wallet_by_id
@@ -14,7 +14,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 
-async def update_transaction(session, transaction_id: uuid.UUID, new_status: str, service_user: uuid.UUID):
+async def update_deposit_transaction(session, transaction_id: uuid.UUID, new_status: str, service_user: uuid.UUID):
     try:
 
         # Проверка, что запрос исходит от доверенного сервисного пользователя
@@ -36,6 +36,10 @@ async def update_transaction(session, transaction_id: uuid.UUID, new_status: str
         # Проверить текущий и новый статус
         if pending_transaction.status != 'pending' or new_status not in ['paid', 'rejected']:
             return {"status": "invalid_status_update"}
+        
+        # Проверить тип транзакции 
+        if pending_transaction.type != 'deposit':
+            return {"status": "invalid_type_transaction"}
 
         # Обновляем статус
         pending_transaction.status = new_status
@@ -49,11 +53,11 @@ async def update_transaction(session, transaction_id: uuid.UUID, new_status: str
             service_wallet_stmt = select(ServiceWallet).where(ServiceWallet.id == pending_transaction.from_wallet_id)
             service_wallet_result = await session.execute(service_wallet_stmt)
             service_wallet = service_wallet_result.scalar_one_or_none()
-
-            service_wallet.balance += pending_transaction.converted_amount
             
             if not service_wallet:
                 return {"status": "service_wallet_not_found"}
+            
+            service_wallet.balance += pending_transaction.converted_amount
             
              # Вычисляем комиссию:
             commission_amount = pending_transaction.converted_amount * service_wallet.commission_rate
@@ -133,3 +137,143 @@ async def update_transaction(session, transaction_id: uuid.UUID, new_status: str
     except SQLAlchemyError as e:
         await session.rollback()
         raise e
+    
+    
+
+async def update_withdraw_transaction(session, transaction_id: uuid.UUID, new_status: str, service_user_id: uuid.UUID):
+    try:
+
+        # Проверка, что запрос исходит от доверенного сервисного пользователя
+        service_user_stmt = select(ServiceUser).where(ServiceUser.id == service_user_id)
+        service_user_result = await session.execute(service_user_stmt)
+        service_user_record = service_user_result.scalar_one_or_none()
+
+        if not service_user_record:
+            return {"status": "unauthorized"}
+        
+        # Найти соответствующую запись в pending_transactions
+        stmt = select(PendingTransaction).where(PendingTransaction.id == transaction_id)
+        result = await session.execute(stmt)
+        pending_transaction = result.scalar_one_or_none()
+
+        if not pending_transaction:
+            return {"status": "transaction_not_found"}
+
+        # Проверить текущий и новый статус
+        if pending_transaction.status != 'pending' or new_status not in ['paid', 'rejected']:
+            return {"status": "invalid_status_update"}
+        
+        # Проверить тип транзакции
+        if pending_transaction.type != 'withdraw':
+            return {"status": "invalid_type_transaction"}
+
+        # Обновляем статус
+        pending_transaction.status = new_status
+
+        if new_status == 'paid':
+
+            # Получаем подходящий service_wallet
+            service_wallet_stmt = select(ServiceWallet).where(
+                ServiceWallet.user_id == service_user_id,
+                ServiceWallet.currency_id == pending_transaction.from_currency_id
+                )
+            service_wallet_result = await session.execute(service_wallet_stmt)
+            service_wallet = service_wallet_result.scalar_one_or_none()
+            
+            if not service_wallet:
+                return {"status": "service_wallet_not_found"}
+            
+            # Найти внешний сервисный кошелек с той же валютой
+            external_wallet_stmt = select(ExternalWallet).where(
+                ExternalWallet.currency_id == pending_transaction.from_currency_id,
+                ExternalWallet.user_id == service_user_id 
+            )
+            result = await session.execute(external_wallet_stmt)
+            external_wallet = result.scalar_one_or_none()
+
+            logging.info(f"External wallet: {external_wallet}")
+
+            if not external_wallet:
+                return {"status": "external_wallet_not_found"}
+
+             # Вычисляем комиссию согласно rate на внешнем кошелькке с которого вывод:
+            commission_amount = pending_transaction.converted_amount * external_wallet.commission_rate
+            
+            # Вычисляем cумму перевода за вычетом комиссии:
+            new_amount = pending_transaction.converted_amount - commission_amount
+
+            # Начисляем комиссию на сервисный кошелек 
+            service_wallet.balance += commission_amount
+
+            # Получаем необходимый кошелек пользователя
+            user_wallet_stmt = select(Wallet).where(
+                Wallet.id == pending_transaction.from_wallet_id,
+                Wallet.user_id == pending_transaction.user_id,
+                )
+            user_wallet_result = await session.execute(user_wallet_stmt)
+            user_wallet = user_wallet_result.scalar_one_or_none()
+
+            if not user_wallet:
+                return {"status": "user_wallet_not_found"}
+            
+            user_wallet.reserved_balance -= pending_transaction.converted_amount
+
+            # Создаем новую транзакцию в основных транзакциях отражающую вывод за минусом комисиии с кошелька на внешний аккаунт пользователя
+            new_transaction_user = Transaction(
+                from_wallet_id=pending_transaction.from_wallet_id,
+                from_currency_id=pending_transaction.from_currency_id,
+                amount=new_amount,
+                to_wallet_id=pending_transaction.to_wallet_id,
+                to_currency_id=pending_transaction.to_currency_id,
+                rate=pending_transaction.rate,
+                converted_amount=new_amount,
+                type="withdraw",
+                status="close",
+                user_id=service_wallet.user_id
+            )
+            session.add(new_transaction_user)
+
+            # Создаем транзакцию комиссии:
+            commission_transaction = Transaction(
+                from_wallet_id=pending_transaction.from_wallet_id,
+                from_currency_id=pending_transaction.from_currency_id,
+                amount=commission_amount,
+                to_wallet_id=service_wallet.id,
+                to_currency_id=service_wallet.currency_id,
+                rate=1,
+                converted_amount=commission_amount,
+                type="commission",
+                status="close",
+                user_id=service_wallet.user_id
+            )
+            session.add(commission_transaction)
+
+            # Создаем новую транзакцию в cервисных транзакциях для фиксирования перевода с service_external_wallet на user_external_wallet
+            new_transaction_service = ServiceTransaction(
+                from_wallet_id=pending_transaction.external_wallet_id,  # ID сервисного внешнего кошелька
+                from_currency_id=pending_transaction.from_currency_id,
+                amount=new_amount,
+                to_wallet_id=pending_transaction.to_wallet_id,
+                to_currency_id=pending_transaction.to_currency_id,
+                rate=1,  
+                converted_amount=new_amount,
+                type="withdraw",
+                status="close",
+                user_id=service_wallet.user_id  # ID сервиисного пользователя, владельца service_wallet
+            )
+            session.add(new_transaction_service)
+
+
+        elif new_status == 'rejected':
+            # Здесь ваш код для обработки отклоненной транзакции
+            logging.info(f"Transaction {transaction_id} was rejected.")
+            
+            # Надо возвратить с reserved_balance средства на баланс:
+
+        await session.commit()
+
+        return new_transaction_service
+
+    except SQLAlchemyError as e:
+        await session.rollback()
+        raise str(e)

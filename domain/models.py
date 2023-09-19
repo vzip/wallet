@@ -79,6 +79,7 @@ class ExternalWallet(Base):
     balance = Column(DECIMAL(precision=20, scale=10))
     reserved_balance = Column(DECIMAL(precision=20, scale=10))
     currency_id = Column(Integer, index=True)
+    commission_rate = Column(DECIMAL(precision=20, scale=10), nullable=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('service_users.id'))
     owner = relationship("ServiceUser", back_populates="external_wallets")       
 
@@ -126,15 +127,14 @@ class ServiceTransaction(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     user_id = Column(UUID(as_uuid=True), ForeignKey('service_users.id'))    
 
-
 class PendingTransaction(Base):
     # ... (остальные поля)
     __tablename__ = 'pending_transactions'
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
-    from_wallet_id = Column(UUID(as_uuid=True), ForeignKey('service_wallets.id'))
+    from_wallet_id = Column(UUID(as_uuid=True), nullable=False)
     from_currency_id = Column(Integer, ForeignKey('currencies.id'))
     amount = Column(DECIMAL(precision=20, scale=10)) 
-    to_wallet_id = Column(UUID(as_uuid=True), ForeignKey('wallets.id'))
+    to_wallet_id = Column(UUID(as_uuid=True), nullable=False)
     to_currency_id = Column(Integer, ForeignKey('currencies.id'))
     rate = Column(DECIMAL(precision=20, scale=10))
     converted_amount = Column(DECIMAL(precision=20, scale=10)) 

@@ -9,6 +9,7 @@ from decimal import Decimal
 from pydantic import parse_obj_as
 from typing import List
 from sqlalchemy import exc as sa_exc
+from dataclasses import asdict
 import uuid
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +54,7 @@ async def get_all_user_transactions(session: AsyncSession, user_id):
 
 async def get_user_transactions_by_wallet_id(session: AsyncSession, wallet_id, user_id):
     transactions = await get_transactions_by_wallet_id(session, wallet_id, user_id)
-    logging.info(f"User ID in transaction service: {user_id}")
+    logging.info(f"User ID in transaction service: {user_id}") 
     if not transactions:
         return None
     return transactions 
@@ -61,9 +62,15 @@ async def get_user_transactions_by_wallet_id(session: AsyncSession, wallet_id, u
     
 async def withdraw_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: Decimal, user_id, service_user_id):
     pending_transaction = await create_pending_withdraw(session, wallet_id, amount, user_id, service_user_id)
-    logging.info(f"pending_transaction in service: {pending_transaction.id}")
+    
     if not pending_transaction:
         return None
+    # Проверяем, является ли pending_transaction словарем и содержит ли он ключ 'error'
+    if isinstance(pending_transaction, dict) and 'error' in pending_transaction:
+        logging.info(f"pending_transaction.error in service: {pending_transaction['error']}")
+        return pending_transaction
+    
+    logging.info(f"pending_transaction in service: {pending_transaction.id}")
     return PendingTransactionOutDTO(
         id=pending_transaction.id,
         from_wallet_id=pending_transaction.from_wallet_id,
@@ -76,11 +83,10 @@ async def withdraw_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: De
         type=pending_transaction.type,
         status=pending_transaction.status,
         timestamp=pending_transaction.timestamp,
-        user_id=pending_transaction.user_id,
-        external_wallet_id=pending_transaction.external_wallet_id,
-        external_transaction_id=pending_transaction.external_transaction_id
+        user_id=pending_transaction.user_id
         
     )
+
 
 
 async def reserve_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: Decimal):

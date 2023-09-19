@@ -57,7 +57,7 @@ async def create_external_wallets(session, user_id):
 
         new_wallets = []
         for currency_id in currency_ids:
-            new_wallet = ExternalWallet(user_id=user_id, balance=Decimal("0.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id)
+            new_wallet = ExternalWallet(user_id=user_id, balance=Decimal("0.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id, commission_rate=Decimal("0.02"))
             session.add(new_wallet)
             new_wallets.append(new_wallet)
 
@@ -80,7 +80,7 @@ async def create_new_wallet(session, new_wallet):
         except SQLAlchemyError as e:
             raise e  # 
         
-async def create_new_ext_wallet(session, wallet_name: str, currency_id: int, user_id: uuid.UUID):
+async def create_new_user_ext_wallet(session, wallet_name: str, currency_id: int, user_id: uuid.UUID):
         try:
             # Проверка на существование кошелька с данным user_id и currency_id
             stmt = select(UserExternalWallet).where(UserExternalWallet.user_id == user_id, UserExternalWallet.currency_id == currency_id)
