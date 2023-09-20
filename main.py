@@ -200,9 +200,21 @@ async def deposit_wallet(service_user_id: uuid.UUID, wallet_id: uuid.UUID, amoun
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid amount")    
     if not isinstance(amount, Decimal):
         raise HTTPException(status_code=400, detail="Amount must be a decimal number")
+    exception_raised = False
     try:
-        return await transaction_service.deposit_funds(session, wallet_id, amount, current_user.id, service_user_id)
+        pending_transaction = await transaction_service.deposit_funds(session, wallet_id, amount, current_user.id, service_user_id)
+        logging.info(f"pending_transaction in main: {pending_transaction}")
+        if isinstance(pending_transaction, dict) and 'error' in pending_transaction:
+            text_error = pending_transaction['error']
+            logging.info(f"text_error in main: {text_error}")
+            exception_raised = True
+            raise HTTPException(status_code=400, detail=str(text_error))
+        else:
+            return pending_transaction
+        
     except Exception as e:
+        if exception_raised:
+            raise e
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))    
 
 @app.post("/wallet/exchange", response_model=AmountOutDTO)
@@ -285,17 +297,39 @@ async def service_login(username: str, password: str, session: AsyncSession = De
 # Update deposit transaction by service user
 @app.put("/service/transaction/deposit", response_model=TransactionOutDTO)
 async def update_service_deposit_transaction_status(transaction_id: uuid.UUID, new_status: str, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_service_user)):
+    exception_raised = False
     try:
-        return await payment_service.update_service_deposit_transaction(session, transaction_id, new_status, current_user.id)
+        new_transaction_service = await payment_service.update_service_deposit_transaction(session, transaction_id, new_status, current_user.id)
+        logging.info(f"pending_transaction in main: {new_transaction_service}")
+        if isinstance(new_transaction_service, dict) and 'error' in new_transaction_service:
+            text_error = new_transaction_service['error']
+            logging.info(f"text_error in main: {text_error}")
+            exception_raised = True
+            raise HTTPException(status_code=400, detail=str(text_error))
+        else:
+            return new_transaction_service
     except Exception as e:
+        if exception_raised:
+            raise e
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))  
 
 # Update withdraw transaction by service user
 @app.put("/service/transaction/withdraw", response_model=TransactionOutDTO)
 async def update_service_withdraw_transaction_status(transaction_id: uuid.UUID, new_status: str, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_service_user)):
+    exception_raised = False
     try:
-        return await payment_service.update_service_withdraw_transaction(session, transaction_id, new_status, current_user.id)
+        new_transaction_service = await payment_service.update_service_withdraw_transaction(session, transaction_id, new_status, current_user.id)
+        logging.info(f"pending_transaction in main: {new_transaction_service}")
+        if isinstance(new_transaction_service, dict) and 'error' in new_transaction_service:
+            text_error = new_transaction_service['error']
+            logging.info(f"text_error in main: {text_error}")
+            exception_raised = True
+            raise HTTPException(status_code=400, detail=str(text_error))
+        else:
+            return new_transaction_service
     except Exception as e:
+        if exception_raised:
+            raise e
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))  
 
 

@@ -109,42 +109,20 @@ async def get_transactions_by_wallet_id(session, wallet_id: uuid.UUID, user_id: 
     except SQLAlchemyError as e:
         logging.error(f"Error while fetching transactions: {e}")
         raise e
-    
-async def deposit_transaction(session, wallet_id: uuid.UUID, amount: Decimal, user_id: uuid.UUID):
-    try:
-        logging.info(f"Amount in tansaction repository: {amount}, User Id: {user_id}")
-        
-        stmt = select(Wallet).where(Wallet.id == wallet_id).with_for_update()
-        result = await session.execute(stmt)
-        wallet = result.scalar_one()
 
-        wallet.balance += amount
-
-        new_transaction = Transaction(
-            amount=amount,
-            from_wallet_id=None,
-            to_wallet_id=wallet.id,
-            type="deposit",
-            user_id=user_id
-        )
-
-        session.add(new_transaction)
-        await session.commit()
-
-        return wallet
-    
-    except SQLAlchemyError as e:
-            raise e  # 
 
 async def create_pending_deposit(session, wallet_id: uuid.UUID, amount: Decimal, user_id: uuid.UUID, service_user_id: uuid.UUID):
     try:
         # Найти кошелек пользователя
-        stmt = select(Wallet).where(Wallet.id == wallet_id)
+        stmt = select(Wallet).where(
+            Wallet.id == wallet_id,
+            Wallet.user_id == user_id
+            )
         result = await session.execute(stmt)
         user_wallet = result.scalar_one_or_none()
 
         if not user_wallet:
-            return {"status": "wallet_not_found"}
+            return {"error": "wallet_not_found"}
 
         # Найти сервисный кошелек с той же валютой
         stmt = select(ServiceWallet).where(
@@ -155,7 +133,7 @@ async def create_pending_deposit(session, wallet_id: uuid.UUID, amount: Decimal,
         service_wallet = result.scalar_one_or_none()
 
         if not service_wallet:
-            return {"status": "service_wallet_not_found"}
+            return {"error": "service_wallet_not_found"}
         
         # Найти сервисный кошелек с той же валютой
         stmt = select(ExternalWallet).where(
@@ -166,13 +144,13 @@ async def create_pending_deposit(session, wallet_id: uuid.UUID, amount: Decimal,
         external_wallet = result.scalar_one_or_none()
 
         if not external_wallet:
-            return {"status": "service_wallet_not_found"}
+            return {"error": "service_external_wallet_not_found"}
 
         # Получаем идентификатор от "внешнего" API
         external_transaction_id = await mock_external_payment_api()
 
         if not external_transaction_id:
-            return {"status": "service_wallet_not_responding"}
+            return {"error": "service_wallet_not_responding"}
 
         # Создать запись в pending_transactions
         pending_transaction = PendingTransaction(
@@ -201,14 +179,16 @@ async def create_pending_deposit(session, wallet_id: uuid.UUID, amount: Decimal,
 async def create_pending_withdraw(session, wallet_id: uuid.UUID, amount: Decimal, user_id: uuid.UUID, service_user_id: uuid.UUID):
     try:
         # Найти кошелек пользователя
-        stmt = select(Wallet).where(Wallet.id == wallet_id)
+        stmt = select(Wallet).where(
+            Wallet.id == wallet_id,
+            Wallet.user_id == user_id
+            )
         result = await session.execute(stmt)
         user_wallet = result.scalar_one_or_none()
-
-        logging.info(f"User wallet: {user_wallet}")
-
+        
         if not user_wallet:
             return {"error": "wallet_not_found"}
+        logging.info(f"User wallet: {user_wallet}")
 
         if user_wallet.balance <= amount:
             return {"error": "wallet_do_not_have_enough_funds"}
@@ -223,11 +203,10 @@ async def create_pending_withdraw(session, wallet_id: uuid.UUID, amount: Decimal
         )
         result = await session.execute(stmt2)
         user_ext_wallet = result.scalar_one_or_none()
-
-        logging.info(f"User external wallet: {user_ext_wallet}")
         
         if not user_ext_wallet:
             return {"error": "user_ext_wallet_not_found"}
+        logging.info(f"User external wallet: {user_ext_wallet}")
 
         # Найти внешний сервисный кошелек с той же валютой
         stmt3 = select(ExternalWallet).where(
@@ -237,11 +216,12 @@ async def create_pending_withdraw(session, wallet_id: uuid.UUID, amount: Decimal
         result = await session.execute(stmt3)
         external_wallet = result.scalar_one_or_none()
 
-        logging.info(f"External wallet: {external_wallet}")
+        
 
         if not external_wallet:
             return {"error": "external_wallet_not_found"}
         
+        logging.info(f"External wallet: {external_wallet}")
         logging.info(f"Amount: {amount}")
         logging.info(f"external_wallet.balance: {external_wallet.balance}")
 
@@ -282,14 +262,10 @@ async def create_pending_withdraw(session, wallet_id: uuid.UUID, amount: Decimal
 
         session.add(pending_transaction)
         await session.commit()
-
         return pending_transaction
 
     except SQLAlchemyError as sae:
-        logging.error(f"SQLAlchemy Error: {sae}")
-        # Если вы хотите увидеть полный traceback:
-        logging.exception("Full error traceback:")
-        # await session.rollback()
+        await session.rollback()
         return str(sae)   
         
 

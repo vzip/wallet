@@ -24,9 +24,15 @@ async def transfer_funds_with_convertation(session: AsyncSession, amount: Decima
 
 async def deposit_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: Decimal, user_id, service_user_id):
     pending_transaction = await create_pending_deposit(session, wallet_id, amount, user_id, service_user_id)
-    logging.info(f"pending_transaction in service: {pending_transaction.id}")
+    
     if not pending_transaction:
         return None
+    # Проверяем, является ли pending_transaction словарем и содержит ли он ключ 'error'
+    if isinstance(pending_transaction, dict) and 'error' in pending_transaction:
+        logging.info(f"pending_transaction.error in service: {pending_transaction['error']}")
+        return pending_transaction
+    
+    logging.info(f"pending_transaction in service: {pending_transaction.id}")
     return PendingTransactionOutDTO(
         id=pending_transaction.id,
         from_wallet_id=pending_transaction.from_wallet_id,
@@ -86,7 +92,6 @@ async def withdraw_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: De
         user_id=pending_transaction.user_id
         
     )
-
 
 
 async def reserve_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: Decimal):

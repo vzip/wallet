@@ -13,9 +13,14 @@ logging.basicConfig(level=logging.INFO)
 
 async def update_service_deposit_transaction(session: AsyncSession, transaction_id: uuid.UUID, new_status: str, service_user_id: uuid.UUID):
     new_transaction_service = await update_deposit_transaction(session, transaction_id, new_status, service_user_id)
-    logging.info(f"pending_transaction in service: {new_transaction_service.id}")
+    
     if not new_transaction_service:
         return None
+    if isinstance(new_transaction_service, dict) and 'error' in new_transaction_service:
+        logging.info(f"new_transaction_service.error in service: {new_transaction_service['error']}")
+        return new_transaction_service
+    
+    logging.info(f"pending_transaction in service: {new_transaction_service.id}")
     return TransactionOutDTO(
         id=new_transaction_service.id,
         from_wallet_id=new_transaction_service.from_wallet_id,
@@ -34,9 +39,14 @@ async def update_service_deposit_transaction(session: AsyncSession, transaction_
 
 async def update_service_withdraw_transaction(session: AsyncSession, transaction_id: uuid.UUID, new_status: str, service_user_id: uuid.UUID):
     new_transaction_service = await update_withdraw_transaction(session, transaction_id, new_status, service_user_id)
-    logging.info(f"pending_transaction in service: {new_transaction_service.id}")
+    
     if not new_transaction_service:
         return None
+    if isinstance(new_transaction_service, dict) and 'error' in new_transaction_service:
+        logging.info(f"new_transaction_service.error in service: {new_transaction_service['error']}")
+        return new_transaction_service
+    
+    logging.info(f"pending_transaction in service: {new_transaction_service.id}")
     return TransactionOutDTO(
         id=new_transaction_service.id,
         from_wallet_id=new_transaction_service.from_wallet_id,
