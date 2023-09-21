@@ -280,9 +280,9 @@ async def register_service(user: UserCreateDTO, session: AsyncSession = Depends(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     # new_wallet = WalletCreateDTO(balance=0.000001, reserved_balance=0.000001, currency_id=1, user_id=user.id)
     wallets = await wallet_service.create_service_wallets_for_all_currencies(session, user.id)
-    logging.info(f"User id received in register: {user.id}")
+    logging.info(f"User id received in register_service: {user.id}")
     access_token = user_service.create_access_token(user.id)
-    return {"access_token": access_token} #wallets 
+    return {"access_token": access_token, "user_id": user.id} #wallets 
 
 # Get service user token by login and password
 @app.get("/service/auth/login")
@@ -292,7 +292,7 @@ async def service_login(username: str, password: str, session: AsyncSession = De
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     logging.info(f"User id received in login: {user.id}")
     access_token = user_service.create_access_token(user.id)
-    return {"access_token": access_token}
+    return {"access_token": access_token, "user_id": user.id}
 
 # Update deposit transaction by service user
 @app.put("/service/transaction/deposit", response_model=TransactionOutDTO)

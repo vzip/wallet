@@ -57,7 +57,7 @@ async def create_external_wallets(session, user_id):
 
         new_wallets = []
         for currency_id in currency_ids:
-            new_wallet = ExternalWallet(user_id=user_id, balance=Decimal("0.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id, commission_rate=Decimal("0.02"))
+            new_wallet = ExternalWallet(user_id=user_id, balance=Decimal("10.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id, commission_rate=Decimal("0.02"))
             session.add(new_wallet)
             new_wallets.append(new_wallet)
 
