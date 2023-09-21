@@ -17,7 +17,7 @@ async def create_wallets(session, user_id):
 
             new_wallets = []
             for currency_id in currency_ids:
-                new_wallet = Wallet(user_id=user_id, balance=Decimal("0.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id)
+                new_wallet = Wallet(user_id=user_id, balance=Decimal("1.000001"), reserved_balance=Decimal("0.000001"), currency_id=currency_id)
                 session.add(new_wallet)
                 new_wallets.append(new_wallet)
 
