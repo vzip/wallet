@@ -107,15 +107,31 @@ async def read_current_user(credentials: HTTPBasicCredentials = Depends(security
 # Auth through reg
 @app.post("/auth/register")
 async def register(user: UserCreateDTO, session: AsyncSession = Depends(get_db)):
-    user = await user_service.create_new_user(session, user)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    # new_wallet = WalletCreateDTO(balance=0.000001, reserved_balance=0.000001, currency_id=1, user_id=user.id)
-    wallets = await wallet_service.create_wallets_for_all_currencies(session, user.id)
-    logging.info(f"User id received in register: {user.id}")
-    access_token = user_service.create_access_token(user.id)
-    return {"access_token": access_token} #wallets 
+    exception_raised = False
+    try:
+        user = await user_service.create_new_user(session, user)
+        if not user:
+            exception_raised = True
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        
+        logging.info(f"user in main: {user}")
+        if isinstance(user, dict) and 'error' in user:
+            text_error = user['error']
+            logging.info(f"text_error in /auth/register: {text_error}")
+            exception_raised = True
+            raise HTTPException(status_code=400, detail=str(text_error))
+        else:
+            
+            # new_wallet = WalletCreateDTO(balance=0.000001, reserved_balance=0.000001, currency_id=1, user_id=user.id)
+            wallets = await wallet_service.create_wallets_for_all_currencies(session, user.id)
+            logging.info(f"User id received in register: {user.id}")
+            access_token = user_service.create_access_token(user.id)
+            return {"access_token": access_token} #wallets 
 
+    except Exception as e:
+        if exception_raised:
+            raise e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))    
 
 # Auth through login
 @app.post("/auth/login")

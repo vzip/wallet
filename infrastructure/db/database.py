@@ -11,7 +11,7 @@ import os
 # DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://default_user:default_pass@localhost/default_db")
 
 DATABASE_URL = 'postgresql+asyncpg://admin:Dezya201188@localhost/wallet_db'
-engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(DATABASE_URL, echo=True, pool_size=0, max_overflow=-1, pool_timeout=360)
 
 Base = declarative_base()
 

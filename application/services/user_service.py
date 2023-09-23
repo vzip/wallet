@@ -31,12 +31,19 @@ async def create_new_user(session: AsyncSession, user_dto: UserCreateDTO):
     user = await get_user_by_username(session, user_dto.username)
     if user:
         return False
+    
     # If not exist, continue create new
     hashed_password = pwd_context.hash(user_dto.password)
 
     new_user = await create_user(session, user_dto, hashed_password)
     if not new_user:
         return None
+    
+    # Проверяем, является ли pending_transaction словарем и содержит ли он ключ 'error'
+    if isinstance(new_user, dict) and 'error' in new_user:
+        logging.info(f"pending_transaction.error in service: {new_user['error']}")
+        return new_user
+    
     return UserOutDTO(id=new_user.id, username=new_user.username, email=new_user.email)
 
 

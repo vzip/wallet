@@ -17,7 +17,8 @@ async def create_user(session: AsyncSession, user_dto, hashed_password):
             await session.commit()
             return new_user
         except SQLAlchemyError as e:
-            raise e  # 
+            #raise e  # 
+            return {"error": "{e}}"}
 
 async def create_service_user(session: AsyncSession, user_dto, hashed_password):
         try:
