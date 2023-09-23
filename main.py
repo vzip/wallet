@@ -12,6 +12,7 @@ from application.dtos.transaction_dto import TransactionCreateDTO, TransactionLi
 from decimal import Decimal, InvalidOperation
 from typing import List
 from datetime import datetime
+from pydantic import ValidationError
 import re
 import uuid
 import logging
@@ -106,8 +107,13 @@ async def read_current_user(credentials: HTTPBasicCredentials = Depends(security
 
 # Auth through reg
 @app.post("/auth/register")
-async def register(user: UserCreateDTO, session: AsyncSession = Depends(get_db)):
+async def register(user_data: dict, session: AsyncSession = Depends(get_db)):
     exception_raised = False
+    try:
+        user = UserCreateDTO(**user_data)
+    except ValidationError as ve:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(f"{ve}"))
+    
     try:
         user = await user_service.create_new_user(session, user)
         if not user:
@@ -119,7 +125,7 @@ async def register(user: UserCreateDTO, session: AsyncSession = Depends(get_db))
             text_error = user['error']
             logging.info(f"text_error in /auth/register: {text_error}")
             exception_raised = True
-            raise HTTPException(status_code=400, detail=str(text_error))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(text_error))
         else:
             
             # new_wallet = WalletCreateDTO(balance=0.000001, reserved_balance=0.000001, currency_id=1, user_id=user.id)

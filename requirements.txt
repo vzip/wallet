@@ -1,0 +1,41 @@
+# Core libraries
+fastapi
+async-timeout
+
+# Database
+SQLAlchemy
+asyncpg
+aiopg
+
+# Asynchronous
+httpx
+aiohttp
+aiosignal
+amqp
+anyio
+
+# Data manipulation
+pydantic
+pandas
+
+#Utils
+PyJWT==2.3.0
+passlib==1.7.4
+validators
+
+# Testing
+pytest
+pytest-asyncio
+pytest-metadata
+pytest-xdist
+pytest-html
+faker
+openpyxl==3.0.10
+
+# HTTP
+uvicorn
+gunicorn
+
+# Additional dependencies
+# Use the git repository for the latest version of a package
+# git+https://github.com/vzip/wallet.git

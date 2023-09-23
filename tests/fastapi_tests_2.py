@@ -6,6 +6,8 @@ import logging
 import sys
 from datetime import datetime
 import pandas as pd
+import json
+from dto import res_dto
 
 
 
@@ -42,14 +44,23 @@ async def register_user(client):
         print(f"Sending registration data: {payload}")
 
         response = await client.post(f"{BASE_URL}/auth/register", json=payload)
-
+        
         logging.info(f"Received response: {response.status_code}, {response.json()}")
         print(f"Received response: {response.status_code}, {response.json()}")
 
         assert response.status_code == 200
         
-        return username, password
-    
+        resp = res_dto.UserAuthOutDTO(
+            username=username,
+            password=password,
+            status=str(response.status_code),
+            message=json.dumps(response.json())
+        )
+
+        
+        return resp 
+    except httpx.TimeoutException:
+        raise Exception(f"Request timed out")    
     except Exception as e:
             raise Exception(f"Failed with username: {username}, password: {password} with {str(e)}") from e
     
@@ -61,43 +72,46 @@ async def get_token(client, username, password):
         })
         assert response.status_code == 200
         return response.json()["access_token"]
-    
+    except httpx.TimeoutException:
+        raise Exception(f"Request timed out")
     except Exception as e:
         raise Exception(f"Failed with username: {username}, password: {password} with {str(e)}") from e
     
 @pytest.mark.parametrize("task_number, attempts", [(i, 0) for i in range(1, 10)])
 @pytest.mark.asyncio
 async def test_registration(task_number, attempts):
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        username, password = None, None  # Инициализация перед блоком try
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        
         try:
-            username, password = await register_user(client)
-            assert username
-            return username, password
+            user = await register_user(client)
+            assert user.status == str(200)
+            return user
         except Exception as e:
-            raise Exception(f"Failed with username: {username}, password: {password}") from e    
+            raise Exception(f"Failed with: {e}") from e    
     
 @pytest.mark.parametrize("task_number, attempts", [(i, 0) for i in range(1, 10)])
 @pytest.mark.asyncio
 async def test_registration_and_login(task_number, attempts):
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        username, password = None, None  # Инициализация перед блоком try
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        
         try:
-            username, password = await register_user(client)
-            token = await get_token(client, username, password)
+            user = await register_user(client)
+            if user.status == str(200):
+                token = await get_token(client, user.username, user.password)
             assert token
-            return username, password
+            return user
         except Exception as e:
-            raise Exception(f"Failed with username: {username}, password: {password}") from e
+            raise Exception(f"Failed with: {e}") from e
 
 @pytest.mark.parametrize("task_number, attempts", [(i, 0) for i in range(1, 10)])
 @pytest.mark.asyncio
 async def test_wallet_operations(task_number, attempts):
     async with httpx.AsyncClient(timeout=120.0) as client:
-        username, password = None, None  # Инициализация перед блоком try
+        
         try:
-            username, password = await register_user(client)
-            token = await get_token(client, username, password)
+            user = await register_user(client)
+            if user.status == str(200):
+                token = await get_token(client, user.username, user.password)
             headers = {"token": f"{token}"}
 
             # Получение начальных кошельков
@@ -150,9 +164,9 @@ async def test_wallet_operations(task_number, attempts):
                 print(f"Expected balance: {round(expected_balances[wallet['id']], 10)}")
                 print(f"Actual balance: {float(wallet['balance'])}")
 
-            return username, password
+            return user
         except Exception as e:
-            raise Exception(f"Failed with username: {username}, password: {password}") from e
+            raise Exception(f"Failed with {e}") from e
         
 @pytest.mark.parametrize("task_number, attempts", [(i, 0) for i in range(1, 10)])
 @pytest.mark.asyncio
@@ -160,30 +174,30 @@ async def test_transfer_between_users(task_number, attempts):
     async with httpx.AsyncClient(timeout=120.0) as client:
         
         # Создание первого пользователя и получение его кошельков
-        username1, password1 = await register_user(client)
-        token1 = await get_token(client, username1, password1)
-        headers1 = {"token": f"{token1}"}
-        response1 = await client.get(f"{BASE_URL}/user/wallets", headers=headers1)
-        assert response1.status_code == 200
-        wallets1 = response1.json()["wallets"]
-        print(f"wallets1: {wallets1}")
+        user_1 = await register_user(client)
+        token_1 = await get_token(client, user_1.username, user_1.password)
+        headers_1 = {"token": f"{token_1}"}
+        response_1 = await client.get(f"{BASE_URL}/user/wallets", headers=headers_1)
+        assert response_1.status_code == 200
+        wallets_1 = response_1.json()["wallets"]
+        print(f"wallets1: {wallets_1}")
             
 
         # Создание второго пользователя и получение его кошельков
-        username2, password2 = await register_user(client)
-        token2 = await get_token(client, username2, password2)
-        headers2 = {"token": f"{token2}"}
-        response2 = await client.get(f"{BASE_URL}/user/wallets", headers=headers2)
-        assert response2.status_code == 200
-        wallets2 = response2.json()["wallets"]
-        print(f"wallets2: {wallets2}")
+        user_2 = await register_user(client)
+        token_2 = await get_token(client, user_2.username, user_2.password)
+        headers_2 = {"token": f"{token_2}"}
+        response_2 = await client.get(f"{BASE_URL}/user/wallets", headers=headers_2)
+        assert response_2.status_code == 200
+        wallets_2 = response_2.json()["wallets"]
+        print(f"wallets2: {wallets_2}")
 
         # Перевод средств с первого кошелька первого пользователя на первый кошелек второго пользователя
-        source_wallet = next(wallet for wallet in wallets1 if wallet['currency_id'] == 1)
-        target_wallet = next(wallet for wallet in wallets2 if wallet['currency_id'] == 1)
+        source_wallet = next(wallet for wallet in wallets_1 if wallet['currency_id'] == 1)
+        target_wallet = next(wallet for wallet in wallets_2 if wallet['currency_id'] == 1)
 
         transfer_amount = 0.05
-        response = await client.post(f"{BASE_URL}/wallet/transfer", headers=headers1, params={
+        response = await client.post(f"{BASE_URL}/wallet/transfer", headers=headers_1, params={
             "source_wallet_id": source_wallet['id'],
             "target_wallet_id": target_wallet['id'],
             "amount": transfer_amount
@@ -191,14 +205,14 @@ async def test_transfer_between_users(task_number, attempts):
         assert response.status_code == 200
 
         # Проверка балансов после перевода
-        response1 = await client.get(f"{BASE_URL}/user/wallets", headers=headers1)
-        updated_wallets1 = response1.json()["wallets"]
+        response_1 = await client.get(f"{BASE_URL}/user/wallets", headers=headers_1)
+        updated_wallets1 = response_1.json()["wallets"]
         updated_source_wallet = next(wallet for wallet in updated_wallets1 if wallet['id'] == source_wallet['id'])
         assert round(float(updated_source_wallet['balance']), 10) == round(float(source_wallet['balance']) - transfer_amount, 10)
         print(f"updated_source_wallet: {round(float(updated_source_wallet['balance']), 10)} == source_wallet - transfer_amount: {round(float(source_wallet['balance']) - transfer_amount, 10)}")
 
-        response2 = await client.get(f"{BASE_URL}/user/wallets", headers=headers2)
-        updated_wallets2 = response2.json()["wallets"]
+        response_2 = await client.get(f"{BASE_URL}/user/wallets", headers=headers_2)
+        updated_wallets2 = response_2.json()["wallets"]
         updated_target_wallet = next(wallet for wallet in updated_wallets2 if wallet['id'] == target_wallet['id'])
         assert round(float(updated_target_wallet['balance']), 10) == round(float(target_wallet['balance']) + transfer_amount, 10)
         print(f"updated_target_wallet: {round(float(updated_target_wallet['balance']), 10)} == target_wallet + transfer_amount: {round(float(target_wallet['balance']) + transfer_amount, 10)}")
@@ -294,8 +308,8 @@ async def test_wallet_operations_with_service_user(task_number, attempts):
         print(f"service_user_id: {service_user_id}")
 
         # 2. Регистрация и вход обычного пользователя
-        username, password = await register_user(client)
-        user_token = await get_token(client, username, password)
+        user = await register_user(client)
+        user_token = await get_token(client, user.username, user.password)
         print(f"user_token: {user_token}")
 
         # 3. Создание транщакции запроса на депозит
@@ -321,14 +335,16 @@ async def wrapper(task, task_number, attempts):
     for attempt in range(3):  # Попытаемся выполнить задачу 3 раза
         attempts += 1
         try:
-            username, password = await task(task_number, attempts)
+            resp = await task(task_number, attempts)
             report.append({
                 "task": task.__name__, 
                 "status": "success", 
                 "task_number": task_number, 
                 "attempts": attempts,
-                "username": username,
-                "password": password
+                "username": resp.username,
+                "password": resp.password,
+                "response_code": resp.status,
+                "response_body": resp.message
                 })
             break  # Выход из цикла если задача выполнена успешно
         except Exception as e:  # Замените на более конкретный тип исключения, если возможно
@@ -339,25 +355,27 @@ async def wrapper(task, task_number, attempts):
                     "task_number": task_number, 
                     "attempts": attempts,
                     "username": username,
-                    "password": password
+                    "password": password,
+                    "error": str(f"500 : {e}")
                     })
             else:
                 report.append({
                     "task": task.__name__, 
-                    "status": "failed", 
+                    "status": f"failed, attempt {attempt}", 
                     "task_number": task_number, 
                     "attempts": attempts,
                     "username": username,
                     "password": password, 
-                    "Error": str(e)})
+                    "error": str(e)
+                    })
                 # break  # Выход из цикла если возникла не ошибка 500 
 
 @pytest.mark.asyncio
 async def test_wrapper_50_x_4_async():
-    tasks_one = [wrapper(test_registration, i, 0) for i in range(1, 10)]
-    tasks_two = [wrapper(test_registration, i, 0) for i in range(1, 20)]
-    tasks_three = [wrapper(test_registration_and_login, i, 0) for i in range(1, 10)]
-    tasks_four = [wrapper(test_registration_and_login, i, 0) for i in range(1, 10)]
+    tasks_one = [wrapper(test_registration, i, 0) for i in range(1, 100)]
+    tasks_two = [wrapper(test_registration, i, 0) for i in range(1, 100)]
+    tasks_three = [wrapper(test_registration_and_login, i, 0) for i in range(1, 100)]
+    tasks_four = [wrapper(test_registration_and_login, i, 0) for i in range(1, 100)]
     all_tasks = tasks_one + tasks_two + tasks_three + tasks_four
     test = await gather(*all_tasks)
     assert test
