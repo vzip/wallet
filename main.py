@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Header, Query
-from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,9 @@ from pydantic import ValidationError
 import re
 import uuid
 import logging
+import subprocess
+import asyncio
+
 
 
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +37,33 @@ async def startup_event():
 class ErrorResponse(BaseModel):
     status: int
     message: str
+
+####
+app.mount("/tests/reports", StaticFiles(directory="tests/reports"), name="reports")
+
+async def run_command(command: str):
+    process = await asyncio.create_subprocess_shell(
+        command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    while True:
+        line = await process.stdout.readline()
+        if not line:
+            break
+        yield line.decode("utf-8").strip() + "\n"
+
+@app.get("/run-tests/")
+async def read_root():
+    command = "pytest -v tests/fastapi_online.py --html=tests/reports/report.html"
+    return StreamingResponse(run_command(command), media_type="text/event-stream")
+
+@app.get("/run-tests-local/")
+async def read_root():
+    command = "pytest -v tests/fastapi_local.py --html=tests/reports/report.html"
+    return StreamingResponse(run_command(command), media_type="text/event-stream")
+####
 
 # Conveter str to decimal
 def ensure_decimal_places(d: Decimal, n: int) -> Decimal:
@@ -262,10 +293,21 @@ async def transfer_funds(source_wallet_id: uuid.UUID, target_wallet_id: uuid.UUI
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid amount")
     if not isinstance(amount, Decimal):
         raise HTTPException(status_code=400, detail="Amount must be a decimal number")
+    exception_raised = False
     try:
-        return await transaction_service.transfer_funds_with_convertation(session, amount, source_wallet_id, target_wallet_id, user_id)
+        transfer_transaction = await transaction_service.transfer_funds_with_convertation(session, amount, source_wallet_id, target_wallet_id, user_id)
+        logging.info(f"Tansfer transaction in main: {transfer_transaction}")
+        if isinstance(transfer_transaction, dict) and 'error' in transfer_transaction:
+            text_error = transfer_transaction['error']
+            logging.info(f"text_error in main: {text_error}")
+            exception_raised = True
+            raise HTTPException(status_code=400, detail=str(text_error))
+        else:
+            return transfer_transaction
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(f"Rejected, source_wallet_id have different owner. {e}"))
+        if exception_raised:
+            raise e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(f"Rejected by {e}"))
 
 @app.post("/wallet/withdraw", response_model=PendingTransactionOutDTO)
 async def withdraw_funds(service_user_id: uuid.UUID, from_wallet_id: uuid.UUID, amount: Decimal = Query(..., alias="amount"),  session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):

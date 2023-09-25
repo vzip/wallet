@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>report.html</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 24-Sep-2023 at 20:50:00 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Summary</h2>
+    <p>46 tests ran in 78.77 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">46 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[1-0]</td>
+          <td class="col-duration">0.58</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610123&#x27;, &#x27;email&#x27;: &#x27;1695610123sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610123&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMGI1MjU1MS0yOWUxLTQ0ZDItYmEyNi00NWY0NzU3YjhhNWEifQ.-_7Ws14bj_R-ouGbGLmUdSekoy5OiHutXLmcdSchWt8&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[2-0]</td>
+          <td class="col-duration">0.47</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610124&#x27;, &#x27;email&#x27;: &#x27;1695610124sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610124&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NWIyOTIzNy1mZThhLTRiMzYtYTEyZS01MDA1MzllYWZiM2EifQ.0C8ZfcVHK9yHZeECBqnRSieilRN7UcoTtXTb-eikkXA&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[3-0]</td>
+          <td class="col-duration">0.36</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610125&#x27;, &#x27;email&#x27;: &#x27;1695610125sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610125&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzZmMzODU3MS0zZjk3LTRiZDMtOWY1NC1lNGQyNmJiOTM2ZjQifQ.NSOv1mKGBDgIHZbx9rkFrfP7fHraopYUK0CeRQgfkKQ&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[4-0]</td>
+          <td class="col-duration">0.39</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610126&#x27;, &#x27;email&#x27;: &#x27;1695610126sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610126&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YzBmNGFkNC03ZDgzLTQ0OGEtOTFjYy0zYjgwOGFkMWEyNzgifQ.-5csKAiScsvp687C2kOP2wJHpI61L9DyNecPPgRTnko&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[5-0]</td>
+          <td class="col-duration">0.50</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610127&#x27;, &#x27;email&#x27;: &#x27;1695610127sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610127&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1OTI3NTQ1MS01Nzg5LTQyY2ItODZjNy1mNjk1OTI2MjAyZTUifQ.6qAJ7kljqMdxaP_bmcZXkoE2l046FDv0zkn5_oPR3pg&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[6-0]</td>
+          <td class="col-duration">0.40</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610128&#x27;, &#x27;email&#x27;: &#x27;1695610128sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610128&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3OTM0MGNjOC1jNTBkLTRiOWUtYmQ3OS1kODJlYjgzNjgwMzIifQ.ckOKraRghkPiBCEwaQ_wQOeVCUe5Y6sIJAnn6ootWLA&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[7-0]</td>
+          <td class="col-duration">0.37</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610129&#x27;, &#x27;email&#x27;: &#x27;1695610129sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610129&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkNDU2NWZhMC02OGJmLTQ2N2ItYTBmZi05MzFjM2QwMGZjMjcifQ.B80HzqO14yLyAwr4oZpbI0_srWAoKGYagfTda6nM_mA&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[8-0]</td>
+          <td class="col-duration">0.36</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610130&#x27;, &#x27;email&#x27;: &#x27;1695610130sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610130&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZDVjZDYwNi1mMjUxLTRhMDgtODY5MS0wOTdlMWY5ZGVmMWUifQ.5wkitA16sR8UCKLdKc0qfQ-yWmvOS5BJ2IRPHIr0oXA&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration[9-0]</td>
+          <td class="col-duration">0.38</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610131&#x27;, &#x27;email&#x27;: &#x27;1695610131sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610131&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlYmZlMjhhNS0xMmU5LTRiMjgtODhjMy03NmQzMGU4MTU0YjAifQ.VsUHHHeGb7tOfEZTQ0CuQPyX34VNDxMsMWPmxrmpKSg&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[1-0]</td>
+          <td class="col-duration">0.69</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610132&#x27;, &#x27;email&#x27;: &#x27;1695610132sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610132&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ODJkMDNhOC1jMDEyLTQ3YzgtYjUxNy1lNjYyOTM5MDBiYjMifQ.YZABuULLl181_X42ZrA6WZavUVWU0feLWpMU-144EOw&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[2-0]</td>
+          <td class="col-duration">0.70</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610133&#x27;, &#x27;email&#x27;: &#x27;1695610133sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610133&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZDdkZGFjOC0xN2NkLTQzYWItYWY0Mi01OWViOThkNjMyYWYifQ.X491V0kURClHhBUBWZBc3fgyxB1wkENZ52v-jzIYyYg&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[3-0]</td>
+          <td class="col-duration">1.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610134&#x27;, &#x27;email&#x27;: &#x27;1695610134sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610134&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjOTg5NDJiNC02Nzc5LTRhNDMtYjAwMC0xOWY2NDU2ZDNmZjEifQ.1JGqxT6683-vZPLE1zlirCSTo9aRDiGu8IuFg-OlcTk&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[4-0]</td>
+          <td class="col-duration">1.73</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610135&#x27;, &#x27;email&#x27;: &#x27;1695610135sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610135&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NzlmYTNiYi1kNGI5LTQ1OGItOWFkMy1jNGI3ZDYxZjU2YWQifQ.VrK5VMZvXfB9v22KZztYzB2wksccspqKDnxxVkpMMJQ&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[5-0]</td>
+          <td class="col-duration">1.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610136&#x27;, &#x27;email&#x27;: &#x27;1695610136sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610136&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMzViY2UzZC01NGQxLTRjMmMtOGU0NS1hNDdhZjQxMTFkYTIifQ.Amp2jszvS0VfG2hAhMUorocTECaMY4y7rF7u62KJyBg&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[6-0]</td>
+          <td class="col-duration">1.05</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610137&#x27;, &#x27;email&#x27;: &#x27;1695610137sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610137&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkYzU5YWI1Ny1iZTkyLTQxZTEtOTczZS0wMjBiYjFlYTMwNTUifQ.qEU7PlWG576yQc6aebwwaJ7ZiwFB0Kk-nLJBFPDHYOw&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[7-0]</td>
+          <td class="col-duration">0.89</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610138&#x27;, &#x27;email&#x27;: &#x27;1695610138sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610138&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1ZmNlYzM3ZC00YjNkLTQzNWEtOTQ4My0xMzkyNTA4YmY1MmYifQ.XfVccZAHto3JDT2indmmnhwNx243_IVV9S7CAPLUL48&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[8-0]</td>
+          <td class="col-duration">0.79</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610139&#x27;, &#x27;email&#x27;: &#x27;1695610139sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610139&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmOGRhMzRmZi0wMGUzLTQ2M2UtODIyOC1iNTM4MDZjYWE2ODQifQ.xXkjPOBuNfAJ4wIFJXvQDHBDt6A0664yCQZczX-Tio0&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_registration_and_login[9-0]</td>
+          <td class="col-duration">0.87</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610140&#x27;, &#x27;email&#x27;: &#x27;1695610140sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610140&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyOTYyOGVmMC04YjJmLTRmMTItYWUyOC1lZjk2OWJkZGVlYTIifQ.IrdwNsIp6hP5vMYPlc-td-KOUfL_yN1B9uMZolKyZNc&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[1-0]</td>
+          <td class="col-duration">2.52</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610141&#x27;, &#x27;email&#x27;: &#x27;1695610141sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610141&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3ZjgxZTc0MC1iYjcyLTQ1M2QtOGUxYS0wNzlhM2NlMzEwMjcifQ.yWQBGxP9sXV_UeHO-SZit7ewymzHfBsBGJjxHGMZCt0&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;00c00da9-0d29-4824-94d7-5e02454728da&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;9b63be92-8b47-4ca7-a3a4-ee1dfecd095a&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;7f81e740-bb72-453d-8e1a-079a3ce31027&#x27;, &#x27;id&#x27;: &#x27;a2a9d2a6-383c-4e95-b939-064d16344238&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:48:57.931288+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;00c00da9-0d29-4824-94d7-5e02454728da&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;6b0b27a8-3900-499b-8291-18655137827d&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;7f81e740-bb72-453d-8e1a-079a3ce31027&#x27;, &#x27;id&#x27;: &#x27;3320045a-02a2-40c4-a3ad-9b568a069237&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:48:58.243619+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;9b63be92-8b47-4ca7-a3a4-ee1dfecd095a&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;00c00da9-0d29-4824-94d7-5e02454728da&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;7f81e740-bb72-453d-8e1a-079a3ce31027&#x27;, &#x27;id&#x27;: &#x27;ed9df995-9cab-4e8b-bb54-7caf103e8e04&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:48:58.496196+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;9b63be92-8b47-4ca7-a3a4-ee1dfecd095a&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;6b0b27a8-3900-499b-8291-18655137827d&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;7f81e740-bb72-453d-8e1a-079a3ce31027&#x27;, &#x27;id&#x27;: &#x27;84b1d9be-3fe7-420a-b86c-6303015c1299&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:48:58.587899+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;6b0b27a8-3900-499b-8291-18655137827d&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;00c00da9-0d29-4824-94d7-5e02454728da&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;7f81e740-bb72-453d-8e1a-079a3ce31027&#x27;, &#x27;id&#x27;: &#x27;86342169-8292-43bf-abf7-79bd89603148&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:48:58.639660+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;6b0b27a8-3900-499b-8291-18655137827d&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;9b63be92-8b47-4ca7-a3a4-ee1dfecd095a&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;7f81e740-bb72-453d-8e1a-079a3ce31027&#x27;, &#x27;id&#x27;: &#x27;79f79f76-358d-4d61-a4bf-f0c93410ae58&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:48:58.837707+00:00&#x27;}
+Wallet ID: 00c00da9-0d29-4824-94d7-5e02454728da
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+Wallet ID: 6b0b27a8-3900-499b-8291-18655137827d
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: 9b63be92-8b47-4ca7-a3a4-ee1dfecd095a
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[2-0]</td>
+          <td class="col-duration">1.62</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610142&#x27;, &#x27;email&#x27;: &#x27;1695610142sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610142&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYTFmOTk4Yy00MzRjLTQ3YjYtOWY3Yy1iMDM2YmZiZmEzZWQifQ.YTKsdFrjH_TC2kUK44gq-vwXqIgvtee5RZQgCqeF_Cs&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;665cb6ba-99b7-4c86-9fe3-0ceb72ae40a1&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;acb03e9b-c67f-423d-88fe-80179dd362f1&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;1a1f998c-434c-47b6-9f7c-b036bfbfa3ed&#x27;, &#x27;id&#x27;: &#x27;4ac2dffd-2061-4c55-a715-0fa390eb61b4&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:00.126055+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;665cb6ba-99b7-4c86-9fe3-0ceb72ae40a1&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;2aea42a9-bc7c-4554-bcf1-e0d2eb5dc66c&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;1a1f998c-434c-47b6-9f7c-b036bfbfa3ed&#x27;, &#x27;id&#x27;: &#x27;0081fda3-9ce0-46ae-843b-b25192ba12a0&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:00.184111+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;acb03e9b-c67f-423d-88fe-80179dd362f1&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;665cb6ba-99b7-4c86-9fe3-0ceb72ae40a1&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;1a1f998c-434c-47b6-9f7c-b036bfbfa3ed&#x27;, &#x27;id&#x27;: &#x27;c7d554d3-0214-45b7-b90f-53b2c4d93dc7&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:00.244036+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;acb03e9b-c67f-423d-88fe-80179dd362f1&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;2aea42a9-bc7c-4554-bcf1-e0d2eb5dc66c&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;1a1f998c-434c-47b6-9f7c-b036bfbfa3ed&#x27;, &#x27;id&#x27;: &#x27;bde7ff27-7946-49d4-927d-fb4ae7acf3ab&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:00.299532+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;2aea42a9-bc7c-4554-bcf1-e0d2eb5dc66c&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;665cb6ba-99b7-4c86-9fe3-0ceb72ae40a1&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;1a1f998c-434c-47b6-9f7c-b036bfbfa3ed&#x27;, &#x27;id&#x27;: &#x27;06f6ec35-8984-430e-a853-1f9ec46650dc&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:00.371027+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;2aea42a9-bc7c-4554-bcf1-e0d2eb5dc66c&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;acb03e9b-c67f-423d-88fe-80179dd362f1&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;1a1f998c-434c-47b6-9f7c-b036bfbfa3ed&#x27;, &#x27;id&#x27;: &#x27;4f3a8b68-b319-495e-a9e0-de3666148b6b&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:00.466610+00:00&#x27;}
+Wallet ID: 665cb6ba-99b7-4c86-9fe3-0ceb72ae40a1
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+Wallet ID: 2aea42a9-bc7c-4554-bcf1-e0d2eb5dc66c
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: acb03e9b-c67f-423d-88fe-80179dd362f1
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[3-0]</td>
+          <td class="col-duration">1.98</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610143&#x27;, &#x27;email&#x27;: &#x27;1695610143sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610143&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4YmU5MDcwOC02Y2E4LTRmZjAtOTAxYy0xNGU5MDg3MzU1YmUifQ.eU9LbDFeZ5PUnhk3RJr78zkKpWYG4yhyGp8iUZU7X_A&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;4f9aa9a5-5b35-4f40-91f7-6c76c784063a&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;4fa52329-3fc0-4284-ae11-43517015366b&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;8be90708-6ca8-4ff0-901c-14e9087355be&#x27;, &#x27;id&#x27;: &#x27;173d96d5-4254-45eb-bbeb-9ecd3863f4f3&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:02.026204+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;4f9aa9a5-5b35-4f40-91f7-6c76c784063a&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;a5d8ff6e-d7d7-40b7-ba5d-331a18ed6dfa&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;8be90708-6ca8-4ff0-901c-14e9087355be&#x27;, &#x27;id&#x27;: &#x27;3036eda8-1ce3-45b6-a630-a86b5dab2de9&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:02.151388+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;4fa52329-3fc0-4284-ae11-43517015366b&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;4f9aa9a5-5b35-4f40-91f7-6c76c784063a&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;8be90708-6ca8-4ff0-901c-14e9087355be&#x27;, &#x27;id&#x27;: &#x27;5d2a3769-ae3d-414d-b3ed-46d908a70d44&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:02.362336+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;4fa52329-3fc0-4284-ae11-43517015366b&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;a5d8ff6e-d7d7-40b7-ba5d-331a18ed6dfa&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;8be90708-6ca8-4ff0-901c-14e9087355be&#x27;, &#x27;id&#x27;: &#x27;e9239cbc-c597-43f5-ade4-fd94a0b66c15&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:02.453308+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;a5d8ff6e-d7d7-40b7-ba5d-331a18ed6dfa&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;4f9aa9a5-5b35-4f40-91f7-6c76c784063a&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;8be90708-6ca8-4ff0-901c-14e9087355be&#x27;, &#x27;id&#x27;: &#x27;7303bcde-0916-467e-b7bf-4bcb3b902bb9&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:02.514413+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;a5d8ff6e-d7d7-40b7-ba5d-331a18ed6dfa&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;4fa52329-3fc0-4284-ae11-43517015366b&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;8be90708-6ca8-4ff0-901c-14e9087355be&#x27;, &#x27;id&#x27;: &#x27;fc34d7f2-eaf5-4034-8225-0a9503e5682f&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:02.568576+00:00&#x27;}
+Wallet ID: a5d8ff6e-d7d7-40b7-ba5d-331a18ed6dfa
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: 4fa52329-3fc0-4284-ae11-43517015366b
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+Wallet ID: 4f9aa9a5-5b35-4f40-91f7-6c76c784063a
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[4-0]</td>
+          <td class="col-duration">1.50</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610144&#x27;, &#x27;email&#x27;: &#x27;1695610144sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610144&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzNDkwODMwOC05OWQ0LTRhZDEtYjE5ZC04ZjkwYzE0NDJmNDEifQ.JTk_a50EwMCX-R84Ot2UuLAxvk2jihSollfwLGhVEl0&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;4daf7f5c-dccd-4c72-addc-59a88957d3f4&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;bd4a74a6-36fa-49e3-9649-0f41b0386510&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;34908308-99d4-4ad1-b19d-8f90c1442f41&#x27;, &#x27;id&#x27;: &#x27;7e7a2770-c3ac-4412-9265-fd3c0596acea&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:03.569943+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;4daf7f5c-dccd-4c72-addc-59a88957d3f4&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;ee86809e-22fd-4e97-a1fa-1202c51697e0&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;34908308-99d4-4ad1-b19d-8f90c1442f41&#x27;, &#x27;id&#x27;: &#x27;f1e76c9c-9109-45e4-bec9-fb12a9f245a4&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:03.627339+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;bd4a74a6-36fa-49e3-9649-0f41b0386510&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;4daf7f5c-dccd-4c72-addc-59a88957d3f4&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;34908308-99d4-4ad1-b19d-8f90c1442f41&#x27;, &#x27;id&#x27;: &#x27;6d808f0a-fd34-475f-adef-ff1fdc4f658d&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:03.687700+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;bd4a74a6-36fa-49e3-9649-0f41b0386510&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;ee86809e-22fd-4e97-a1fa-1202c51697e0&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;34908308-99d4-4ad1-b19d-8f90c1442f41&#x27;, &#x27;id&#x27;: &#x27;13c19b5b-2148-4323-ba61-0d6bf1757a60&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:03.795200+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;ee86809e-22fd-4e97-a1fa-1202c51697e0&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;4daf7f5c-dccd-4c72-addc-59a88957d3f4&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;34908308-99d4-4ad1-b19d-8f90c1442f41&#x27;, &#x27;id&#x27;: &#x27;3d1b39b7-b52f-478d-bac5-7a343e759586&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:03.905516+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;ee86809e-22fd-4e97-a1fa-1202c51697e0&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;bd4a74a6-36fa-49e3-9649-0f41b0386510&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;34908308-99d4-4ad1-b19d-8f90c1442f41&#x27;, &#x27;id&#x27;: &#x27;2f016d60-2584-4a00-a758-73f4e0b41fc5&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:03.982490+00:00&#x27;}
+Wallet ID: 4daf7f5c-dccd-4c72-addc-59a88957d3f4
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+Wallet ID: ee86809e-22fd-4e97-a1fa-1202c51697e0
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: bd4a74a6-36fa-49e3-9649-0f41b0386510
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[5-0]</td>
+          <td class="col-duration">1.65</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610145&#x27;, &#x27;email&#x27;: &#x27;1695610145sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610145&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMTY5ZWE5Mi0xZmM4LTRiOWQtOGZiYi02NTkzYTk1M2NlODgifQ.lnKkzNBkWU8eIZ_gdDNlTAiy9nZFcb-aUuUgp-ou3NQ&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;5579c292-4da9-4bff-902d-340d1340e19b&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;c9f46a28-ccf0-498c-a28d-042517ff2d0a&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;0169ea92-1fc8-4b9d-8fbb-6593a953ce88&#x27;, &#x27;id&#x27;: &#x27;81732ec5-2b9e-452a-aac4-f8d0b6a3f649&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:05.239893+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;5579c292-4da9-4bff-902d-340d1340e19b&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;78112066-b6f4-40ad-8262-cb51bc7ffd72&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;0169ea92-1fc8-4b9d-8fbb-6593a953ce88&#x27;, &#x27;id&#x27;: &#x27;ce251d91-9f44-491d-82af-c16f12366085&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:05.374804+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;c9f46a28-ccf0-498c-a28d-042517ff2d0a&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;5579c292-4da9-4bff-902d-340d1340e19b&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;0169ea92-1fc8-4b9d-8fbb-6593a953ce88&#x27;, &#x27;id&#x27;: &#x27;14462ee2-49bc-4a68-a654-03db15b21f35&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:05.447306+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;c9f46a28-ccf0-498c-a28d-042517ff2d0a&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;78112066-b6f4-40ad-8262-cb51bc7ffd72&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;0169ea92-1fc8-4b9d-8fbb-6593a953ce88&#x27;, &#x27;id&#x27;: &#x27;2f1ac3d5-0838-4cf1-9ef7-45dc6061df83&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:05.514152+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;78112066-b6f4-40ad-8262-cb51bc7ffd72&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;5579c292-4da9-4bff-902d-340d1340e19b&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;0169ea92-1fc8-4b9d-8fbb-6593a953ce88&#x27;, &#x27;id&#x27;: &#x27;174b2b34-d9e0-40e8-a77b-8eacfd50e65a&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:05.584995+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;78112066-b6f4-40ad-8262-cb51bc7ffd72&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;c9f46a28-ccf0-498c-a28d-042517ff2d0a&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;0169ea92-1fc8-4b9d-8fbb-6593a953ce88&#x27;, &#x27;id&#x27;: &#x27;89df0e5f-f719-4d7e-a1a3-20550bfe64f3&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:05.639895+00:00&#x27;}
+Wallet ID: 78112066-b6f4-40ad-8262-cb51bc7ffd72
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: 5579c292-4da9-4bff-902d-340d1340e19b
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+Wallet ID: c9f46a28-ccf0-498c-a28d-042517ff2d0a
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[6-0]</td>
+          <td class="col-duration">1.39</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610146&#x27;, &#x27;email&#x27;: &#x27;1695610146sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610146&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2N2E2NDZlMC1mYjJkLTQ2MjctOGEyMi1mZTc2NWZlMzc1ZjQifQ.PaBPbABwYStpJ3oxDUly_rnPkcRemDHtpNEQTKWHvFY&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;db5041df-b0d0-48ef-8f28-724574d39a76&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;80d75d02-3bc9-49ab-9e48-2fb7f167c0ba&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;67a646e0-fb2d-4627-8a22-fe765fe375f4&#x27;, &#x27;id&#x27;: &#x27;eb247d82-a661-4e34-bed0-f5335516d05c&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:06.775266+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;db5041df-b0d0-48ef-8f28-724574d39a76&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;9b50ad34-d6d6-4605-a3b9-3bc69812dd77&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;67a646e0-fb2d-4627-8a22-fe765fe375f4&#x27;, &#x27;id&#x27;: &#x27;ede29972-b7b9-4b1d-b59f-18988d69ec88&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:06.839885+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;80d75d02-3bc9-49ab-9e48-2fb7f167c0ba&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;db5041df-b0d0-48ef-8f28-724574d39a76&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;67a646e0-fb2d-4627-8a22-fe765fe375f4&#x27;, &#x27;id&#x27;: &#x27;098c2cf3-9bc0-4948-a9aa-d889172ee738&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:06.908447+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;80d75d02-3bc9-49ab-9e48-2fb7f167c0ba&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;9b50ad34-d6d6-4605-a3b9-3bc69812dd77&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;67a646e0-fb2d-4627-8a22-fe765fe375f4&#x27;, &#x27;id&#x27;: &#x27;a1813a9a-d5e7-4a1e-8cbf-06525d61e858&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:06.967335+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;9b50ad34-d6d6-4605-a3b9-3bc69812dd77&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;db5041df-b0d0-48ef-8f28-724574d39a76&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;67a646e0-fb2d-4627-8a22-fe765fe375f4&#x27;, &#x27;id&#x27;: &#x27;d182ee77-ecb1-4942-b0b2-b9b18cd2221a&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:07.021864+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;9b50ad34-d6d6-4605-a3b9-3bc69812dd77&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;80d75d02-3bc9-49ab-9e48-2fb7f167c0ba&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;67a646e0-fb2d-4627-8a22-fe765fe375f4&#x27;, &#x27;id&#x27;: &#x27;b03771d8-628f-4a8a-beb4-c622b967fe10&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:07.087267+00:00&#x27;}
+Wallet ID: db5041df-b0d0-48ef-8f28-724574d39a76
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+Wallet ID: 9b50ad34-d6d6-4605-a3b9-3bc69812dd77
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: 80d75d02-3bc9-49ab-9e48-2fb7f167c0ba
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[7-0]</td>
+          <td class="col-duration">5.21</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610147&#x27;, &#x27;email&#x27;: &#x27;1695610147sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610147&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5MjZjZjY3Ny1lMmI3LTRkOWUtYTAzOC1iZWU2ZGY0OWIwNWQifQ.5RzlooYtUFOmIfY1NuF1B5bZgQhQpdZLXbuTvaFSdTw&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;801fd6da-910b-449f-81c5-d81190b12d98&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;4324b359-5020-4ac1-a3e9-15ebe064f4eb&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;926cf677-e2b7-4d9e-a038-bee6df49b05d&#x27;, &#x27;id&#x27;: &#x27;b69b2037-4c3b-4058-844d-1166e065c784&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:08.016177+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;801fd6da-910b-449f-81c5-d81190b12d98&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;1a7d7706-5da1-451c-9070-9a3703096396&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;926cf677-e2b7-4d9e-a038-bee6df49b05d&#x27;, &#x27;id&#x27;: &#x27;34843def-038d-4f85-91bc-c0c7d842f4a6&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:11.472345+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;4324b359-5020-4ac1-a3e9-15ebe064f4eb&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;801fd6da-910b-449f-81c5-d81190b12d98&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;926cf677-e2b7-4d9e-a038-bee6df49b05d&#x27;, &#x27;id&#x27;: &#x27;660acfa9-2127-410e-8d93-a86da79a519c&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:11.662605+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;4324b359-5020-4ac1-a3e9-15ebe064f4eb&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;1a7d7706-5da1-451c-9070-9a3703096396&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;926cf677-e2b7-4d9e-a038-bee6df49b05d&#x27;, &#x27;id&#x27;: &#x27;097f7c68-01f6-4194-972c-45963ca44dc1&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:11.976277+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;1a7d7706-5da1-451c-9070-9a3703096396&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;801fd6da-910b-449f-81c5-d81190b12d98&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;926cf677-e2b7-4d9e-a038-bee6df49b05d&#x27;, &#x27;id&#x27;: &#x27;71414637-798e-4d4a-b809-634ecc7580a8&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:12.217438+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;1a7d7706-5da1-451c-9070-9a3703096396&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;4324b359-5020-4ac1-a3e9-15ebe064f4eb&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;926cf677-e2b7-4d9e-a038-bee6df49b05d&#x27;, &#x27;id&#x27;: &#x27;68f622f8-7e81-4100-9eea-05deebe81238&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:12.322979+00:00&#x27;}
+Wallet ID: 1a7d7706-5da1-451c-9070-9a3703096396
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: 801fd6da-910b-449f-81c5-d81190b12d98
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+Wallet ID: 4324b359-5020-4ac1-a3e9-15ebe064f4eb
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[8-0]</td>
+          <td class="col-duration">2.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610148&#x27;, &#x27;email&#x27;: &#x27;1695610148sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610148&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhYTg4MzBkZS1kMzkxLTQ0YTktOTEyMC1kMTdiNmE4NmZlOWEifQ.HeZR8sBso8nwVmLhxLTu4NzRICP-eh1DtxEJEy-08_c&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;029dbc47-2703-4a42-8b88-fa6a32148797&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;9a0715c3-dbf8-41cf-8240-92f4d5e82372&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;aa8830de-d391-44a9-9120-d17b6a86fe9a&#x27;, &#x27;id&#x27;: &#x27;491e4f51-37b6-4972-9aff-46f735675570&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:13.813906+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;029dbc47-2703-4a42-8b88-fa6a32148797&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;18b0acb9-4175-4675-adde-a2aac5370b92&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;aa8830de-d391-44a9-9120-d17b6a86fe9a&#x27;, &#x27;id&#x27;: &#x27;40692806-6c6f-4c21-b3b4-a85f9dfd7b27&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:14.023542+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;9a0715c3-dbf8-41cf-8240-92f4d5e82372&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;029dbc47-2703-4a42-8b88-fa6a32148797&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;aa8830de-d391-44a9-9120-d17b6a86fe9a&#x27;, &#x27;id&#x27;: &#x27;5e509a4a-94c3-4c02-8a93-ba202d476985&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:14.132846+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;9a0715c3-dbf8-41cf-8240-92f4d5e82372&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;18b0acb9-4175-4675-adde-a2aac5370b92&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;aa8830de-d391-44a9-9120-d17b6a86fe9a&#x27;, &#x27;id&#x27;: &#x27;7c14e6f8-4cbe-4163-ac58-5d15855d1458&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:14.225000+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;18b0acb9-4175-4675-adde-a2aac5370b92&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;029dbc47-2703-4a42-8b88-fa6a32148797&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;aa8830de-d391-44a9-9120-d17b6a86fe9a&#x27;, &#x27;id&#x27;: &#x27;b77590d8-ba5b-4434-af69-180ca8cfdc38&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:14.295539+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;18b0acb9-4175-4675-adde-a2aac5370b92&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;9a0715c3-dbf8-41cf-8240-92f4d5e82372&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;aa8830de-d391-44a9-9120-d17b6a86fe9a&#x27;, &#x27;id&#x27;: &#x27;18d7fb2c-f48f-4b19-985c-4002ff97ff7c&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:14.361046+00:00&#x27;}
+Wallet ID: 18b0acb9-4175-4675-adde-a2aac5370b92
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: 029dbc47-2703-4a42-8b88-fa6a32148797
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+Wallet ID: 9a0715c3-dbf8-41cf-8240-92f4d5e82372
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations[9-0]</td>
+          <td class="col-duration">1.59</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610149&#x27;, &#x27;email&#x27;: &#x27;1695610149sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610149&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjYzdlNjA4Yy01NGM3LTQ1M2QtYTNmMC0yYTA4NjhmYzUyMzQifQ.gDM8gNn_rTYUTFELyqncQX13ul_roUwvexIr7_JX-18&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;e87cf891-2ae2-45a4-ad73-a461180a87e5&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;0e9a8b35-9c8a-49db-9011-2bdd0430f1c8&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 16.7530100002, &#x27;converted_amount&#x27;: 0.8376505, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;cc7e608c-54c7-453d-a3f0-2a0868fc5234&#x27;, &#x27;id&#x27;: &#x27;78192d33-ad48-466d-8fca-3d6a9c904af8&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:15.662423+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;e87cf891-2ae2-45a4-ad73-a461180a87e5&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;23d87b9f-6ad9-47c1-8561-d4a51c9ba4ba&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 95.0000051, &#x27;converted_amount&#x27;: 4.750000255, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;cc7e608c-54c7-453d-a3f0-2a0868fc5234&#x27;, &#x27;id&#x27;: &#x27;6a7344cb-1b95-4fb6-8be7-7a636e35c1f2&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:15.735508+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;0e9a8b35-9c8a-49db-9011-2bdd0430f1c8&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;e87cf891-2ae2-45a4-ad73-a461180a87e5&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.05969077, &#x27;converted_amount&#x27;: 0.0029845385, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;cc7e608c-54c7-453d-a3f0-2a0868fc5234&#x27;, &#x27;id&#x27;: &#x27;094e8890-9c8c-4450-acd8-3911a0ac3bd1&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:15.792692+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;0e9a8b35-9c8a-49db-9011-2bdd0430f1c8&#x27;, &#x27;from_currency_id&#x27;: 2, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;23d87b9f-6ad9-47c1-8561-d4a51c9ba4ba&#x27;, &#x27;to_currency_id&#x27;: 3, &#x27;rate&#x27;: 5.5600100001, &#x27;converted_amount&#x27;: 0.2780005, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;cc7e608c-54c7-453d-a3f0-2a0868fc5234&#x27;, &#x27;id&#x27;: &#x27;99e57f4d-1486-4936-93ef-8e6bc0ced2ad&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:15.846357+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;23d87b9f-6ad9-47c1-8561-d4a51c9ba4ba&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;e87cf891-2ae2-45a4-ad73-a461180a87e5&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: 0.010552632, &#x27;converted_amount&#x27;: 0.0005276316, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;cc7e608c-54c7-453d-a3f0-2a0868fc5234&#x27;, &#x27;id&#x27;: &#x27;28e3baa0-bb43-4a15-9ff2-7bc654514623&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:15.902479+00:00&#x27;}
+User transaction: {&#x27;from_wallet_id&#x27;: &#x27;23d87b9f-6ad9-47c1-8561-d4a51c9ba4ba&#x27;, &#x27;from_currency_id&#x27;: 3, &#x27;amount&#x27;: 0.05, &#x27;to_wallet_id&#x27;: &#x27;0e9a8b35-9c8a-49db-9011-2bdd0430f1c8&#x27;, &#x27;to_currency_id&#x27;: 2, &#x27;rate&#x27;: 0.1800100023, &#x27;converted_amount&#x27;: 0.0090005001, &#x27;type&#x27;: &#x27;transfer&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;user_id&#x27;: &#x27;cc7e608c-54c7-453d-a3f0-2a0868fc5234&#x27;, &#x27;id&#x27;: &#x27;c29ac079-e2f3-4e43-8383-56a6cd74b210&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:16.071434+00:00&#x27;}
+Wallet ID: e87cf891-2ae2-45a4-ad73-a461180a87e5
+Expected balance: 0.9035131701
+Actual balance: 0.9035131701
+Wallet ID: 23d87b9f-6ad9-47c1-8561-d4a51c9ba4ba
+Expected balance: 5.928001755
+Actual balance: 5.928001755
+Wallet ID: 0e9a8b35-9c8a-49db-9011-2bdd0430f1c8
+Expected balance: 1.7466520001
+Actual balance: 1.7466520001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[1-0]</td>
+          <td class="col-duration">1.63</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610150&#x27;, &#x27;email&#x27;: &#x27;1695610150sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610150&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMGFkMTkxMi00NjkwLTRhYmItOGM3Mi05MmI2OWQzZjEyMTUifQ.UDFVmmZP2SGvYsoUM5IBGpTMlH01ILsRT-0yMNiMyqE&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;5b08ee3d-c530-43c4-a554-294fd3ebc890&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;a0ad1912-4690-4abb-8c72-92b69d3f1215&#x27;}, {&#x27;id&#x27;: &#x27;1f90fd57-84a6-4100-992e-30ce21c7b811&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;a0ad1912-4690-4abb-8c72-92b69d3f1215&#x27;}, {&#x27;id&#x27;: &#x27;0673c829-5efe-4c33-a7c2-f8f22b469741&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;a0ad1912-4690-4abb-8c72-92b69d3f1215&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610151&#x27;, &#x27;email&#x27;: &#x27;1695610151sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610151&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkODFjMzAzOS1hYTAyLTQyMDEtOTk3ZC1mYjVkZDg1Zjg1N2YifQ.Jg18eGQ2t4fu5Ltex6gH70lj9wGzvWmENELY9Yj-h9M&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;53cd00f5-f76b-454c-a738-387dc2e5546a&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;d81c3039-aa02-4201-997d-fb5dd85f857f&#x27;}, {&#x27;id&#x27;: &#x27;79784dce-fe9c-4c4d-ad7c-0941dba81ffa&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;d81c3039-aa02-4201-997d-fb5dd85f857f&#x27;}, {&#x27;id&#x27;: &#x27;3ef44c4a-966b-4142-b6c9-02f0310f734c&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;d81c3039-aa02-4201-997d-fb5dd85f857f&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[2-0]</td>
+          <td class="col-duration">1.64</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610152&#x27;, &#x27;email&#x27;: &#x27;1695610152sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610152&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZWI0M2I1Ny1kZjQzLTRhOGEtODk0My0zYzQ0ZDI1MzRkYzAifQ.b9OYDfqFSUvKBYRYpL-Eh7k7Xj7M9VpHrMI06Sdayv8&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;3529f76c-3d63-481e-a96a-de8f2019def4&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;deb43b57-df43-4a8a-8943-3c44d2534dc0&#x27;}, {&#x27;id&#x27;: &#x27;0ebf3bfb-8789-4791-a8b0-f16be7ba5327&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;deb43b57-df43-4a8a-8943-3c44d2534dc0&#x27;}, {&#x27;id&#x27;: &#x27;9fdb4e1d-4bbe-4925-81b6-42263598afb3&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;deb43b57-df43-4a8a-8943-3c44d2534dc0&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610153&#x27;, &#x27;email&#x27;: &#x27;1695610153sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610153&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxY2VlZjRjNS1kMjI0LTQzNzgtODg1Mi02OTIwYWQ5N2EzNzQifQ.FGG1o9zoMuSUcch2RsU69GrpVUyIfpIp9wHMnW88zLQ&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;ca3e73ba-1ac9-4edd-bffd-3439e3dbdd54&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;1ceef4c5-d224-4378-8852-6920ad97a374&#x27;}, {&#x27;id&#x27;: &#x27;dcebb963-3720-4c39-915f-7813df71a504&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;1ceef4c5-d224-4378-8852-6920ad97a374&#x27;}, {&#x27;id&#x27;: &#x27;ec1d40f6-0b18-4c03-8488-9c606b265c71&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;1ceef4c5-d224-4378-8852-6920ad97a374&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[3-0]</td>
+          <td class="col-duration">1.57</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610154&#x27;, &#x27;email&#x27;: &#x27;1695610154sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610154&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiNGVmNWQ5Ny1hNTFmLTQ2YmYtOTE4MC0yODc1YWMxOWQxNTgifQ.b8p2VBKqdhxr7MHCZOlQKREvBdxkYhbfp1JA8FLqZEU&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;a9a7868f-6700-4518-9686-0cdfb967cce4&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;b4ef5d97-a51f-46bf-9180-2875ac19d158&#x27;}, {&#x27;id&#x27;: &#x27;d2077ff8-8291-4415-9df0-a7326316799e&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;b4ef5d97-a51f-46bf-9180-2875ac19d158&#x27;}, {&#x27;id&#x27;: &#x27;328b2244-d7e1-4542-a8b3-d2700f92c492&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;b4ef5d97-a51f-46bf-9180-2875ac19d158&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610155&#x27;, &#x27;email&#x27;: &#x27;1695610155sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610155&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NzU1NDhjMC01M2Q1LTRiMzUtYmU4OC02OGM4Nzc0OTQ4YWQifQ.LgLcJ8lAp4wuqIVHl_XvGOj40Ottt9Q2dbgFDozyCGQ&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;9e9e9681-b048-4f7e-ac7b-5c4439c444e1&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;975548c0-53d5-4b35-be88-68c8774948ad&#x27;}, {&#x27;id&#x27;: &#x27;e71d11a9-79c2-4264-b7ff-97a78d32837d&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;975548c0-53d5-4b35-be88-68c8774948ad&#x27;}, {&#x27;id&#x27;: &#x27;4c671208-c4cc-4911-92bd-3e8ff1f22cab&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;975548c0-53d5-4b35-be88-68c8774948ad&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[4-0]</td>
+          <td class="col-duration">1.73</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610156&#x27;, &#x27;email&#x27;: &#x27;1695610156sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610156&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxZDFkZWJiOS1kNmU3LTQ1ZmMtYTIwOC03M2QzNzgzYWQzZDAifQ.lsOEKz5R7G2MK5Z_jj89UtSLpqgHlGqDQJp5IxRrpw0&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;ceb7f1df-70f5-4db5-b8fd-c27004f7ac47&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;1d1debb9-d6e7-45fc-a208-73d3783ad3d0&#x27;}, {&#x27;id&#x27;: &#x27;4b39c077-b23c-482b-86cd-c4d5baf23bca&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;1d1debb9-d6e7-45fc-a208-73d3783ad3d0&#x27;}, {&#x27;id&#x27;: &#x27;3824972c-1255-46e7-b877-34379a704888&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;1d1debb9-d6e7-45fc-a208-73d3783ad3d0&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610157&#x27;, &#x27;email&#x27;: &#x27;1695610157sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610157&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YmU5YTVhOS03MDI0LTQ1ZWQtYTZlMi1iNDJmOWI1OWRkMDMifQ.wddCRE6AK_SC5zcsCRti7G8F9reJV9VOtJhfU-F2bNk&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;6e3bd45c-2549-41d3-84c8-db4d338c636a&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;6be9a5a9-7024-45ed-a6e2-b42f9b59dd03&#x27;}, {&#x27;id&#x27;: &#x27;ae67c371-2f61-4dea-88c6-847f2d932612&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;6be9a5a9-7024-45ed-a6e2-b42f9b59dd03&#x27;}, {&#x27;id&#x27;: &#x27;7eb47dd6-f447-450a-b0ea-e1a1fc90f82e&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;6be9a5a9-7024-45ed-a6e2-b42f9b59dd03&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[5-0]</td>
+          <td class="col-duration">1.54</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610158&#x27;, &#x27;email&#x27;: &#x27;1695610158sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610158&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxN2QyYThhOS0wYmY5LTRkNWUtYWY3OC0zNDE3YjU4ZTBjMmMifQ.9ClXli7Sj1kN0si2wWUA26VtW8MP14N-epXHWh8tpBU&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;58bf9928-6eb4-481f-98e8-38410b0d5ad7&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;17d2a8a9-0bf9-4d5e-af78-3417b58e0c2c&#x27;}, {&#x27;id&#x27;: &#x27;b8879162-e03c-4555-8ce2-ce7e059937d3&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;17d2a8a9-0bf9-4d5e-af78-3417b58e0c2c&#x27;}, {&#x27;id&#x27;: &#x27;f68de7ce-eaf5-448c-9c34-74fd34439950&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;17d2a8a9-0bf9-4d5e-af78-3417b58e0c2c&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610159&#x27;, &#x27;email&#x27;: &#x27;1695610159sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610159&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyOWY5NDU2Yi0zZjA5LTQzNDktOGY1ZS00NWMwYmE0ODZmMGIifQ.GlrrHi3aUu1rM9-pKec4cBiVXiyLphMKWlXJIAOJo68&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;d03fe450-9233-422f-97ed-d3ed53a9f5ec&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;29f9456b-3f09-4349-8f5e-45c0ba486f0b&#x27;}, {&#x27;id&#x27;: &#x27;8fe18624-3413-4d6c-9ffb-3d658420dfbc&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;29f9456b-3f09-4349-8f5e-45c0ba486f0b&#x27;}, {&#x27;id&#x27;: &#x27;af511dc3-a8c1-4073-8a60-2e7c3ab1383a&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;29f9456b-3f09-4349-8f5e-45c0ba486f0b&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[6-0]</td>
+          <td class="col-duration">1.69</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610160&#x27;, &#x27;email&#x27;: &#x27;1695610160sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610160&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMzA1YjVmYy0zZGU5LTQ3YjUtOGUwZS1iMWRjN2IzNTViODcifQ.da1WPkS7AflRpiR8YqMHRrE-MzY2AJnZGLAEuzAFXdk&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;cff20ffb-2863-4ab7-bbf6-00545f5fe1dc&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;3305b5fc-3de9-47b5-8e0e-b1dc7b355b87&#x27;}, {&#x27;id&#x27;: &#x27;510e3b04-9e49-4e45-ac12-13ec90523cd3&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;3305b5fc-3de9-47b5-8e0e-b1dc7b355b87&#x27;}, {&#x27;id&#x27;: &#x27;69793ff7-f0cf-43de-8ac5-58231889b001&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;3305b5fc-3de9-47b5-8e0e-b1dc7b355b87&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610161&#x27;, &#x27;email&#x27;: &#x27;1695610161sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610161&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlNDlkZDBkNi02ZjZjLTRlYjUtOWFlNi1kZTg0OWY5Y2E3YjgifQ.5Z22sSJZF-CfEu7-Vwdy2jpC1XYFUT-CL21ZxfMhD5g&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;4778bb86-9c42-4517-9931-6d7f9b404565&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;e49dd0d6-6f6c-4eb5-9ae6-de849f9ca7b8&#x27;}, {&#x27;id&#x27;: &#x27;812bd00e-9b79-4ade-b83d-f83ebc801064&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;e49dd0d6-6f6c-4eb5-9ae6-de849f9ca7b8&#x27;}, {&#x27;id&#x27;: &#x27;3010a0ff-caae-4135-9362-b52ca510886b&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;e49dd0d6-6f6c-4eb5-9ae6-de849f9ca7b8&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[7-0]</td>
+          <td class="col-duration">1.58</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610162&#x27;, &#x27;email&#x27;: &#x27;1695610162sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610162&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmNDQxODRlMi02NGFhLTRhYzgtOGM0NS04OGU4YTUzNGRlMWMifQ.wYbXxWHDToyFJrJi3EuJqGi3-FFuBoYq7ag9gqimSsw&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;1690c84f-1653-4d30-b9a0-dca72411efa0&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;f44184e2-64aa-4ac8-8c45-88e8a534de1c&#x27;}, {&#x27;id&#x27;: &#x27;ddf86db3-ef30-4fbe-bab4-8e089111d901&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;f44184e2-64aa-4ac8-8c45-88e8a534de1c&#x27;}, {&#x27;id&#x27;: &#x27;f85ee545-b2e5-4a25-a478-7a9b7a06ad40&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;f44184e2-64aa-4ac8-8c45-88e8a534de1c&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610163&#x27;, &#x27;email&#x27;: &#x27;1695610163sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610163&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNTg2Mzk4Yi1jYzczLTRjYmMtOWQxOS1lN2NhZTgwMjNlZTAifQ.p9hiPJXxqRVwogkAmokWvhZ9Jt4skAysAtrq9_u3fuw&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;66a25015-6204-477e-88c9-ba04d77360c7&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;1586398b-cc73-4cbc-9d19-e7cae8023ee0&#x27;}, {&#x27;id&#x27;: &#x27;a58cd013-648e-46f8-bcb8-6d12bb56f736&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;1586398b-cc73-4cbc-9d19-e7cae8023ee0&#x27;}, {&#x27;id&#x27;: &#x27;80e1effd-ab46-4024-aa69-9fe0a780f749&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;1586398b-cc73-4cbc-9d19-e7cae8023ee0&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[8-0]</td>
+          <td class="col-duration">1.67</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610164&#x27;, &#x27;email&#x27;: &#x27;1695610164sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610164&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzODNjNzkxZC1kNGYyLTQ0YmYtYmVjYS04NGM2YzI5MDA2NGIifQ.NExuBmwbK72eIxscyMVAT-bJ07vQCagELgXJY_VqZlA&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;f0444aea-4aab-45a6-9461-a929af7f10dd&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;383c791d-d4f2-44bf-beca-84c6c290064b&#x27;}, {&#x27;id&#x27;: &#x27;4bf9cfe2-0d48-411d-91ae-6e74a46fc191&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;383c791d-d4f2-44bf-beca-84c6c290064b&#x27;}, {&#x27;id&#x27;: &#x27;1eca38cb-11b0-4bb1-9707-9fcec460f69f&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;383c791d-d4f2-44bf-beca-84c6c290064b&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610165&#x27;, &#x27;email&#x27;: &#x27;1695610165sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610165&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMzBkMjkwYy0zZTBiLTQyYzYtODg1My05MDE5MzFmNDEzYzQifQ.8YWN_l58eU9F1_TODYMxRB2Hv16gDvlAARTic0eV51I&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;3cb897fb-c6d6-4d49-bfa5-ce7664ebdb77&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;330d290c-3e0b-42c6-8853-901931f413c4&#x27;}, {&#x27;id&#x27;: &#x27;6197b44a-dec7-4c98-a124-9cc87cfd0680&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;330d290c-3e0b-42c6-8853-901931f413c4&#x27;}, {&#x27;id&#x27;: &#x27;7467a073-883a-4d6a-ad0d-32f31bcfe9b0&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;330d290c-3e0b-42c6-8853-901931f413c4&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_transfer_between_users[9-0]</td>
+          <td class="col-duration">1.58</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610166&#x27;, &#x27;email&#x27;: &#x27;1695610166sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610166&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjMWIwNDBmNy1iN2MzLTRjYTAtYjg1MS03OWRhZGE2Y2M3ZGYifQ.yOpSVSOinwp2Sp7tUDffivN8QT3KH_MRde-TYJqpfrg&#x27;}
+wallets1: [{&#x27;id&#x27;: &#x27;4fe583c9-17ff-4f5f-ac28-87b380b61d8a&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;c1b040f7-b7c3-4ca0-b851-79dada6cc7df&#x27;}, {&#x27;id&#x27;: &#x27;c0bb4d80-8337-4671-bd60-6fd168449cd0&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;c1b040f7-b7c3-4ca0-b851-79dada6cc7df&#x27;}, {&#x27;id&#x27;: &#x27;497094ad-463d-4978-9bdb-1de2cf6c4523&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;c1b040f7-b7c3-4ca0-b851-79dada6cc7df&#x27;}]
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610167&#x27;, &#x27;email&#x27;: &#x27;1695610167sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610167&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwOWM2MmM2ZS02ZDdiLTRmZmYtOTRkZS03NzQ4YWRjYTY5NDkifQ.TRMMdJEXSUgDCm3VhacQmBpiRZ3oKnSwLC2rGrgdVDY&#x27;}
+wallets2: [{&#x27;id&#x27;: &#x27;a321b93b-3dc6-427c-8bc6-01e69a7c6e33&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 1, &#x27;user_id&#x27;: &#x27;09c62c6e-6d7b-4fff-94de-7748adca6949&#x27;}, {&#x27;id&#x27;: &#x27;6c21625e-63c6-4ac9-a8ee-76134373ade3&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 2, &#x27;user_id&#x27;: &#x27;09c62c6e-6d7b-4fff-94de-7748adca6949&#x27;}, {&#x27;id&#x27;: &#x27;36dedc00-e18e-4251-a123-0f26298e2ac7&#x27;, &#x27;balance&#x27;: &#x27;1.0000010000&#x27;, &#x27;reserved_balance&#x27;: &#x27;0.0000010000&#x27;, &#x27;currency_id&#x27;: 3, &#x27;user_id&#x27;: &#x27;09c62c6e-6d7b-4fff-94de-7748adca6949&#x27;}]
+updated_source_wallet: 0.950001 == source_wallet - transfer_amount: 0.950001
+updated_target_wallet: 1.050001 == target_wallet + transfer_amount: 1.050001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[1-0]</td>
+          <td class="col-duration">1.38</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MThjNzljMi1kMWU3LTQwN2ItYTgyZi0yYzM0MWRlYTYzMDYifQ.YGJVIrIG50CwNQNlTFB9cdYtH493YaAyS4SRI9iXRFo
+service_user_id: 518c79c2-d1e7-407b-a82f-2c341dea6306
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610169&#x27;, &#x27;email&#x27;: &#x27;1695610169sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610169&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ODU2MzRhYy1lMjk1LTQ4NjctOGVmMi1iOTQ1ZTJjMmZkZTUifQ.ShdjXCE47y1l4lrIeUOMsLp_kzXYH9YelhlQrrorwoU&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ODU2MzRhYy1lMjk1LTQ4NjctOGVmMi1iOTQ1ZTJjMmZkZTUifQ.ShdjXCE47y1l4lrIeUOMsLp_kzXYH9YelhlQrrorwoU
+Deposit transaction_id: b92ba633-8ec8-43f7-875c-85785158ce79
+Confirmed transaction: {&#x27;id&#x27;: &#x27;e9e3480e-614a-49c3-ab33-df9f1f2245bd&#x27;, &#x27;from_wallet_id&#x27;: &#x27;e50754d2-1c70-4fbc-b596-97ba153ce96e&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;391633f5-a4f7-410a-97a0-4c79e97a9474&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:32.132076+00:00&#x27;, &#x27;user_id&#x27;: &#x27;518c79c2-d1e7-407b-a82f-2c341dea6306&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[2-0]</td>
+          <td class="col-duration">1.50</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MTI2Y2Y3MC1lNzc2LTRhNjktYmU3Ni0wNDUwMmUwZWM2ZjUifQ.3mneCDtx-32l8GQjm6ZmWxY95GyCYnGEkreGecQGveg
+service_user_id: 4126cf70-e776-4a69-be76-04502e0ec6f5
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610171&#x27;, &#x27;email&#x27;: &#x27;1695610171sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610171&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMTliMzlmNy1iOGIyLTQ4NjgtYmI4Yi0yNWRmYzk1NGU1ZGYifQ.4DH0Akm0x_KmmMTP89q0V5gQLFl7C_Rnc9mh_uzCclY&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMTliMzlmNy1iOGIyLTQ4NjgtYmI4Yi0yNWRmYzk1NGU1ZGYifQ.4DH0Akm0x_KmmMTP89q0V5gQLFl7C_Rnc9mh_uzCclY
+Deposit transaction_id: ffb75d9e-31d1-4b48-baf0-bc1530a03c56
+Confirmed transaction: {&#x27;id&#x27;: &#x27;c6fad562-f384-4645-8056-e5b75b58bd77&#x27;, &#x27;from_wallet_id&#x27;: &#x27;c7ce7061-d0b4-4709-bf66-db35c62fc57a&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;413090a3-27be-4d1b-9a54-1264826ebcaa&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:33.489188+00:00&#x27;, &#x27;user_id&#x27;: &#x27;4126cf70-e776-4a69-be76-04502e0ec6f5&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[3-0]</td>
+          <td class="col-duration">1.41</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxZWVhZmYxYS1hNTBkLTRmNWMtOWEyMS0yMGU4NmQwMmQyZDAifQ.WXBXSKtxm_x50CewnE_abjClCgKvf6IKRjY1L2jpOoo
+service_user_id: 1eeaff1a-a50d-4f5c-9a21-20e86d02d2d0
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610173&#x27;, &#x27;email&#x27;: &#x27;1695610173sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610173&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkOTdkNmVhNi1lZDRhLTQyMDUtYjVmNS05MzU5ZWI0NjdkYTIifQ.wCEgcWCStpDmHMN_w2YoTJaJRtTMWQQpYmiT8kj4Prw&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkOTdkNmVhNi1lZDRhLTQyMDUtYjVmNS05MzU5ZWI0NjdkYTIifQ.wCEgcWCStpDmHMN_w2YoTJaJRtTMWQQpYmiT8kj4Prw
+Deposit transaction_id: a57414bc-bdb6-4f35-972a-b679eb98a1c8
+Confirmed transaction: {&#x27;id&#x27;: &#x27;4c6cf370-6117-4202-867e-fd4d1292ca9d&#x27;, &#x27;from_wallet_id&#x27;: &#x27;0f4244f7-3550-4865-bd2a-1675a60e795e&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;ceead0ec-e929-40ce-83fc-bffd3e8f1f7d&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:35.019391+00:00&#x27;, &#x27;user_id&#x27;: &#x27;1eeaff1a-a50d-4f5c-9a21-20e86d02d2d0&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[4-0]</td>
+          <td class="col-duration">1.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmZTA1OTk2ZC1kNjM5LTQ1ZTMtOTQ4YS1jYWUwZjZlMzVmOTQifQ.s30n79fJqUid5fZDsnQU5-IJ-TJkS4_skhs4LFVQG6Q
+service_user_id: fe05996d-d639-45e3-948a-cae0f6e35f94
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610175&#x27;, &#x27;email&#x27;: &#x27;1695610175sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610175&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NDk5NDRmMC1lZjMzLTQ2NDYtODNjZS0zYTlmNzA3ZTU5NWEifQ.-X5HkFgXLZ53K9AD0Dy0M_31lPxYF_eC-Q4kqkyLwxE&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NDk5NDRmMC1lZjMzLTQ2NDYtODNjZS0zYTlmNzA3ZTU5NWEifQ.-X5HkFgXLZ53K9AD0Dy0M_31lPxYF_eC-Q4kqkyLwxE
+Deposit transaction_id: 7e2921f1-57a8-4c6c-8fab-c36b0d968f83
+Confirmed transaction: {&#x27;id&#x27;: &#x27;580bf2e8-c174-429d-8ccc-5e99ad25da1a&#x27;, &#x27;from_wallet_id&#x27;: &#x27;01cd61b3-650e-41fc-91f5-65e7784d0f99&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;bbabd761-c5e2-45b2-859b-dfc18ff51235&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:36.288260+00:00&#x27;, &#x27;user_id&#x27;: &#x27;fe05996d-d639-45e3-948a-cae0f6e35f94&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[5-0]</td>
+          <td class="col-duration">1.21</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3MWViOWQyZS1lNjJjLTQ2Y2UtYjllNC00YTc0MDA2ZTFlODkifQ.jc3Edrt8SQ3be_85ClX2-3j71fA8h3NOGyZunLpHlRk
+service_user_id: 71eb9d2e-e62c-46ce-b9e4-4a74006e1e89
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610177&#x27;, &#x27;email&#x27;: &#x27;1695610177sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610177&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhYTE5ZDFkYy1kOGUzLTRiNzUtOGRmYS03YjdjM2M0YzMzZWYifQ.C1njCuiLfDKwH_NjhhCZTZbwAh92LOY3ueOBkTB0uzQ&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhYTE5ZDFkYy1kOGUzLTRiNzUtOGRmYS03YjdjM2M0YzMzZWYifQ.C1njCuiLfDKwH_NjhhCZTZbwAh92LOY3ueOBkTB0uzQ
+Deposit transaction_id: 010383fa-bb83-455c-a173-d4ef2f25a70f
+Confirmed transaction: {&#x27;id&#x27;: &#x27;b5acf288-4e28-4246-ab58-32cbfbd1b9ef&#x27;, &#x27;from_wallet_id&#x27;: &#x27;1b5ce96e-f5e6-413e-b5ec-e5df7e2ef6c5&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;bea26cc3-22ba-4a03-92de-e4900e723bdd&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:37.603047+00:00&#x27;, &#x27;user_id&#x27;: &#x27;71eb9d2e-e62c-46ce-b9e4-4a74006e1e89&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[6-0]</td>
+          <td class="col-duration">1.31</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNjFiMTBhZC1iNjZhLTRkNjUtYjhkNy03ZGEwNmY3MjJmMjQifQ.zq3PH460DWlkQKbDVhdgZeweaFUyid4AhZx7FalIg3I
+service_user_id: 161b10ad-b66a-4d65-b8d7-7da06f722f24
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610179&#x27;, &#x27;email&#x27;: &#x27;1695610179sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610179&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMDEzYzJkYi1kZGVlLTRiYmItYTg5Yy1jNWM5ZmM2OWVhYjUifQ.4VVfBjYwFxIQpSE24ymv0SDjarT3_bD2YHzzMPeumPc&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMDEzYzJkYi1kZGVlLTRiYmItYTg5Yy1jNWM5ZmM2OWVhYjUifQ.4VVfBjYwFxIQpSE24ymv0SDjarT3_bD2YHzzMPeumPc
+Deposit transaction_id: 6cb17504-e020-4a13-88d6-c8fc86bf47e6
+Confirmed transaction: {&#x27;id&#x27;: &#x27;e3cb41d3-c326-4bdf-b486-ba4515384324&#x27;, &#x27;from_wallet_id&#x27;: &#x27;f1189b4e-85ee-4b8a-8c84-b1e0fe467971&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;2517e9e3-772c-4405-ba06-0b4ade02260e&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:38.879814+00:00&#x27;, &#x27;user_id&#x27;: &#x27;161b10ad-b66a-4d65-b8d7-7da06f722f24&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[7-0]</td>
+          <td class="col-duration">1.26</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MTNlYjNlNC1lZjJmLTQwZDktYmMwYS05MWFlM2VhM2Y2Y2IifQ.UbpQrePTD8P-84RQWA-5KpSHezt5txPtlkF8wjzIkJI
+service_user_id: 613eb3e4-ef2f-40d9-bc0a-91ae3ea3f6cb
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610181&#x27;, &#x27;email&#x27;: &#x27;1695610181sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610181&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjOTFlZDgwOC1jNzk3LTQwZjMtYWI0Ny00OGYzZmUzOGE0OGEifQ.ANMbkSD9_22uSHckKqxJBypFmp2j4j8DPRrgvHP1o_w&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjOTFlZDgwOC1jNzk3LTQwZjMtYWI0Ny00OGYzZmUzOGE0OGEifQ.ANMbkSD9_22uSHckKqxJBypFmp2j4j8DPRrgvHP1o_w
+Deposit transaction_id: e63b40f4-1eab-416c-99db-35715139b6c7
+Confirmed transaction: {&#x27;id&#x27;: &#x27;23cec034-31c4-441a-9ee0-2ad912d64708&#x27;, &#x27;from_wallet_id&#x27;: &#x27;18522baf-47b7-4597-8572-77bb2e89649e&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;338bb5a5-60b4-4cd5-9eaa-9a59f1a355c3&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:40.171178+00:00&#x27;, &#x27;user_id&#x27;: &#x27;613eb3e4-ef2f-40d9-bc0a-91ae3ea3f6cb&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[8-0]</td>
+          <td class="col-duration">1.21</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ZGJmNTk0My0wYWZiLTRiNmYtOWE3ZS02NDM4MTgyNDA1ZDgifQ.T5eq0hSpelzd4A7dzwtEbwITF99viji5VABlnPGOWB4
+service_user_id: 4dbf5943-0afb-4b6f-9a7e-6438182405d8
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610183&#x27;, &#x27;email&#x27;: &#x27;1695610183sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610183&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiYmI3NWFhNS1hNDU3LTQ2M2YtYTA1YS05ZDEwZDc4NDY3MjcifQ.JX9nranIBefPl9Of9ie2NV82BOXnIHMu5s0ZgR3uru4&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiYmI3NWFhNS1hNDU3LTQ2M2YtYTA1YS05ZDEwZDc4NDY3MjcifQ.JX9nranIBefPl9Of9ie2NV82BOXnIHMu5s0ZgR3uru4
+Deposit transaction_id: 3d1fa50a-91ba-4514-8f57-d9f3a190f496
+Confirmed transaction: {&#x27;id&#x27;: &#x27;886d4c1a-0637-45ec-b810-6724381af2fd&#x27;, &#x27;from_wallet_id&#x27;: &#x27;4b6ba91f-9524-4288-93e8-0d5754348d01&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;f1d45ac2-0d09-4de6-aa5f-de8abf8c640d&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:41.388804+00:00&#x27;, &#x27;user_id&#x27;: &#x27;4dbf5943-0afb-4b6f-9a7e-6438182405d8&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wallet_operations_with_service_user[9-0]</td>
+          <td class="col-duration">1.28</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>service_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkMzg0ODZkYi0yY2M3LTQ4MWEtYjdlZS0wZjA5MWEzZWNmNDAifQ.EdUILUOhrSsAhSS2crvxQ3Db9OnIN6-JtIe-ANq1KmA
+service_user_id: d38486db-2cc7-481a-b7ee-0f091a3ecf40
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610185&#x27;, &#x27;email&#x27;: &#x27;1695610185sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610185&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZTkzMjI0YS1kNzk0LTRjZjgtOTE3Ny01NmI2ODMzMTgzZjcifQ.P3zK4ahRdk2BlloEwWBhk9Cs77HdMA2mWtzmzkWyasg&#x27;}
+user_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZTkzMjI0YS1kNzk0LTRjZjgtOTE3Ny01NmI2ODMzMTgzZjcifQ.P3zK4ahRdk2BlloEwWBhk9Cs77HdMA2mWtzmzkWyasg
+Deposit transaction_id: 2220f3d1-85c3-4820-8fc4-471b4e8e6e47
+Confirmed transaction: {&#x27;id&#x27;: &#x27;7c63b5f1-9822-492e-8db6-8b6d0405d82c&#x27;, &#x27;from_wallet_id&#x27;: &#x27;b481ac78-c0b4-4c28-a3ac-3f32a5ab93ab&#x27;, &#x27;from_currency_id&#x27;: 1, &#x27;amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;to_wallet_id&#x27;: &#x27;c7c994cd-98ff-4760-8e7a-29e855ee2c64&#x27;, &#x27;to_currency_id&#x27;: 1, &#x27;rate&#x27;: &#x27;1&#x27;, &#x27;converted_amount&#x27;: &#x27;0.1000000000&#x27;, &#x27;type&#x27;: &#x27;deposit&#x27;, &#x27;status&#x27;: &#x27;close&#x27;, &#x27;timestamp&#x27;: &#x27;2023-09-25T02:49:42.672534+00:00&#x27;, &#x27;user_id&#x27;: &#x27;d38486db-2cc7-481a-b7ee-0f091a3ecf40&#x27;, &#x27;wallet_id&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/fastapi_local.py::test_wrapper_50_x_4_async</td>
+          <td class="col-duration">17.54</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610186&#x27;, &#x27;email&#x27;: &#x27;1695610186sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610186&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610187&#x27;, &#x27;email&#x27;: &#x27;1695610187sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610187&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610188&#x27;, &#x27;email&#x27;: &#x27;1695610188sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610188&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610189&#x27;, &#x27;email&#x27;: &#x27;1695610189sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610189&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610190&#x27;, &#x27;email&#x27;: &#x27;1695610190sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610190&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610191&#x27;, &#x27;email&#x27;: &#x27;1695610191sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610191&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610192&#x27;, &#x27;email&#x27;: &#x27;1695610192sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610192&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610193&#x27;, &#x27;email&#x27;: &#x27;1695610193sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610193&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610194&#x27;, &#x27;email&#x27;: &#x27;1695610194sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610194&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610195&#x27;, &#x27;email&#x27;: &#x27;1695610195sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610195&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610196&#x27;, &#x27;email&#x27;: &#x27;1695610196sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610196&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610197&#x27;, &#x27;email&#x27;: &#x27;1695610197sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610197&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610198&#x27;, &#x27;email&#x27;: &#x27;1695610198sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610198&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610199&#x27;, &#x27;email&#x27;: &#x27;1695610199sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610199&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610200&#x27;, &#x27;email&#x27;: &#x27;1695610200sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610200&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610201&#x27;, &#x27;email&#x27;: &#x27;1695610201sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610201&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610202&#x27;, &#x27;email&#x27;: &#x27;1695610202sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610202&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610203&#x27;, &#x27;email&#x27;: &#x27;1695610203sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610203&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610204&#x27;, &#x27;email&#x27;: &#x27;1695610204sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610204&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610205&#x27;, &#x27;email&#x27;: &#x27;1695610205sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610205&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610206&#x27;, &#x27;email&#x27;: &#x27;1695610206sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610206&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610207&#x27;, &#x27;email&#x27;: &#x27;1695610207sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610207&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610208&#x27;, &#x27;email&#x27;: &#x27;1695610208sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610208&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610209&#x27;, &#x27;email&#x27;: &#x27;1695610209sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610209&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610210&#x27;, &#x27;email&#x27;: &#x27;1695610210sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610210&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610211&#x27;, &#x27;email&#x27;: &#x27;1695610211sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610211&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610212&#x27;, &#x27;email&#x27;: &#x27;1695610212sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610212&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610213&#x27;, &#x27;email&#x27;: &#x27;1695610213sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610213&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610214&#x27;, &#x27;email&#x27;: &#x27;1695610214sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610214&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610215&#x27;, &#x27;email&#x27;: &#x27;1695610215sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610215&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610216&#x27;, &#x27;email&#x27;: &#x27;1695610216sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610216&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610217&#x27;, &#x27;email&#x27;: &#x27;1695610217sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610217&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610218&#x27;, &#x27;email&#x27;: &#x27;1695610218sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610218&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610219&#x27;, &#x27;email&#x27;: &#x27;1695610219sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610219&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610220&#x27;, &#x27;email&#x27;: &#x27;1695610220sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610220&#x27;}
+Sending registration data: {&#x27;username&#x27;: &#x27;Elizabeth1695610221&#x27;, &#x27;email&#x27;: &#x27;1695610221sarahughes@example.com&#x27;, &#x27;password&#x27;: &#x27;*)S58@ignt@M+ZtxoP6SA!Bzpg2@6S#VSx#%_bke1695610221&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzYzRiYWRjMy1iZDQ4LTRiNTItYmMxYi1mNzA3ZTYwMjkwYTEifQ.GVd0k9BNZIHsvk2f828vp1QNkHifr3ot4RfwPn-hExU&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1YjE2ZDg4NC0xY2RjLTQ1NTEtODY4OS1kYWUyZTVhMTNmZDMifQ.d6pvYONezbaK7LvQclLIH5cQHMvchgRCD9RL05Z5whE&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYzUxZjhjOS03Njc3LTQ5ZWItOWMzOS1mMThhNmY5ZjU3NGEifQ.UjpmWcaX82NZ7rL4pREVAExv8Z_8tnAsEHkbxejzPGE&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkMjUxZmZlYy05MjI4LTQ5MGItOGFhMy02YjUxMDYwZTk1YTYifQ.rfBTd43f6XPD0YgsjsN3cBKIzxxhhMI77uUjQP8Oups&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ZjA1ZmI0OS04MTI2LTQ5Y2UtYjEwZC1kMDJkMjE0NTA4Y2YifQ.Q9JjdTvwbzqH7qZDo-JgpfoSbnqGux_9tmuMJENYZYw&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZWIxMzRmNC1mNTI3LTRkZWItYWRkMC1iNTY3MmI4M2UxMDYifQ.o4CpKkb8dbT8bnxNMez4mNN3KMbJeG5nuDjnFrp70jk&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMTQwZTk4NC0wOTM1LTRjNWYtYmFmZi02M2RlNzY3MDFhMTEifQ.vcaGGt-7R3TQIkqihSkB0eg0utl3NOCfAz7bbYyoy2o&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhYzYzYzk3MC1jMzFlLTQxMmEtODQxOC1jYTM3ODc0MGFiNDIifQ.4Wo-av0ibpoeRMSJoZT3RlxDkHFr1DBDFK7zkicnTXk&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1YzMyMzUyMS03YjI2LTRkMTQtYjdmNS00MTRiMDliODg4MTUifQ.3MiAwogCbSnf_e2ZtoWJhYHA3LuHSwhO-Uu9aGvy3S8&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyZDI0ZjU3Zi02ODQyLTRmNjgtOGQ5My1mN2FmMjY5ZDk2MTcifQ.aoin0C_9oDcc26DGYyCOBsVyIggksHEPGekY41Gr9ZU&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MWY3ZWZmOC0wZTdjLTRjMWItYmM0Yy00NDdhN2U2ZGFiMzEifQ.XPBBKYMQHjXWIXdQ2rt74JF0aamw-r_Y95cYAzzDuHE&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YWJjNThmYy1mOWUyLTQ5MjktOTQ3NC0wNWMzZGMxNDYwZTAifQ.DFFVE4KFR1AmfVLM95JDR-z76MyN1UHMO3_iKJ-u5xA&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzOTc1NWFmYy0yNGViLTQ3OGYtOWIwMS1lOTJkZmQyZDE1YWUifQ.feAdH8X0vBHyjtt6W0ZLlO9iE2AQou0psGBkoqM1OUY&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhOTNmZmI5ZC0zZDFjLTQ5OWUtYmZmNy1lNzNhOWNlZDkwZDQifQ.MT1Ue8RSY4iLBm9t6VliiT3m2uRdUBgDrJiWzvZ9-rQ&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMWQ2ODUzOC03YzNjLTRiYmYtYWVmZC01NTQzYzEzZWI2ZDQifQ.f90o2UooTH4xYk71faQIbTdis-8DlD32a5iyX2e_7wg&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3MWYzMmMyZi1lZWM1LTQ2MzktYWZkOC04OGU3MDE5YzRmZjMifQ.hxLvy-_TWlqk9a7xpNnVMJTsqYcwe6qfRDPywvvqjBY&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ZTRiNTk4My1lMGJmLTQ0ZDMtOTM2MS0yNzAyNjhmNTViMzEifQ.hV8MrCUZcm-5DaAVWUz9KRdggU5DCTSg6_tnTcpvrBo&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkNzJlMjM3ZC04ZDc2LTQ1M2MtODIzNS0wZjk2ZWVkOGRjNGYifQ.Ps21KUjJCwXnVKLtzRGLQFBy6E5IywqmmSfzies0sIE&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjYzdhN2FiZS05ZGM2LTRjYWItYjcxNi0xNmQyYTQxOThmMWYifQ.tyf2U-Qln99u8mezqHuQDhIdDXaI6wWbdyw5W__Zcyg&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2MmEwN2RiYS0wZWRmLTQ2MmQtOGFkOS05YTMwMjQ1ZTllYTgifQ.KjFYOBU-tCyHaVFFyb1_gjo6Wfxg5CIdL543-vVPvkw&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZmY0NzI4ZS1lZGJlLTRkYWUtYTEzNC1kNzcyN2UzMjY5NTQifQ.pdpbA7FkYWu4BCjt62bPbUSBCK6A-tYwYJvoRmKnLIY&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzNGFhN2U1Zi1mNzhjLTQxZWQtYTM5NS03NzRmZGU0N2JhOTkifQ.oPMJwaiWewHo5XU2F6orcm8wpq-6yfsfo9fKCXSqmLM&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyYTk4MTg3Ny1kMzkzLTQzZTAtOWQ3My0xM2NhMzdlZjFiMDAifQ.n3m30BfSK2M_J-9AJSjx6TekwRCJ8YQtGE61Gt0UdU8&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YTE2ZWZiNC03ZjU1LTQyYzYtYTJjNi1mZWZhNmNhNDhmNDUifQ.4K-TupBG984UfAoaZ18d7exoM2xiJIz2yAEHbYQ4Nw4&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhODFmYzViMi1lNThmLTRhNDYtYmFkYi1jZWIwOWZhYmY1ZGMifQ.z8ZJoR1mkdFLrCSCKAWbmsEfmyj2vtZmbYEhal3s7fo&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NzllY2YxZS02NGJlLTRmZjktOWEyOC0xZWQ1ZDQyNTM2OTUifQ.VbR26INg4LUkRC1USxkflrATXg5PdQ0gNuKZQQnsF_s&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5NmQ4ZjEzNy1kY2UxLTQ5NTQtODM1OC05OWJjNzg4M2JkZDUifQ.s9D_cviv2oXd2E0rtvWuSoXv85EErbBapdLbCW3QVCg&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyNDI5OWViYy02NGE0LTQzMzQtODU2MC03NTRmMzEwZjYyNzAifQ.oGCqWNVfRgUKBgAQPuG-noRarNDhwlNfYk4WB9k6lDY&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWRkODJiOC04NWJlLTQ3NjMtOTc0MC04MzkxYmE4NzkzMDAifQ.sPTIUm42vJ0U9dhnn-L4CAuNGOpQyyRIxRPnVF8AjK0&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5MmFhNWY0ZC02MGQzLTRjZWItOTM2NC0zY2YxMGMyODQ1MjUifQ.0EYlKyxtHIF05h3_hqDqv2Gb1l944VPS_sDjuGv6vtI&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3ODJkNjdmMi1jNjc3LTQ1MDYtODRmYi03NzNiZTZlMDNmZjcifQ.zv3wNaicHETffwP3uValaaNjBnzF12HtkYamWTMBIPs&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyOTU3NTZmNS03YTBlLTRhOGEtOGQzYy02MWFkMDFiMDg1MzMifQ.8u3HWSzGC1JidO3OiH3LLxDWzLFouNHgc5uDi6NUIto&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5M2JjZmYyZC1mODYzLTRiMWItYTlkZS00OGRiNzVmMWIwZjcifQ.6WsJ5wHf2ueE8OkXpI3pukGTyaN81EIhMVb_Tq5Hs-s&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5YTAzNzRlNS1hZGRjLTQ4YTItODBhYi1lMjgyMGU1YzkxM2UifQ.A9IYv2hbYdnkfW0s3MWdX_KnUuj5oEh9rN-_JOwBioI&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OTYwNDdiZS02NTcwLTRkNDItOTY2Zi1iN2IwZTg2YjgzNmEifQ.NCAXOPGU5Gr9f6w3GSs8LPAnvNynZaoEPfg6GG74yVU&#x27;}
+Received response: 200, {&#x27;access_token&#x27;: &#x27;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3NzJkNjc3Ni1jNDQxLTQ3NGMtOTYzZC1iYzg1NGU2ODY0NWEifQ.1gSkvzkB8zn9JPXpqxFos86QA6lD88VZpwKSF4FNYiU&#x27;}
+<br/></div></td></tr></tbody></table></body></html>

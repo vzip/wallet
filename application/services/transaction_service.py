@@ -17,9 +17,12 @@ logging.basicConfig(level=logging.INFO)
 
 async def transfer_funds_with_convertation(session: AsyncSession, amount: Decimal, from_wallet_id: uuid.UUID, to_wallet_id: uuid.UUID, user_id: uuid.UUID):
     transaction_res = await transfer_transaction(session, amount, from_wallet_id, to_wallet_id, user_id)
-    logging.info(f"Exchange results in exchange service: {amount}")
+    logging.info(f"Ammount in exchange service: {amount}")
     if not transaction_res:
         return None
+    if isinstance(transaction_res, dict) and 'error' in transaction_res:
+        logging.info(f"transaction_res.error in service: {transaction_res['error']}")
+        return transaction_res
     return transaction_res
 
 async def deposit_funds(session: AsyncSession, wallet_id: uuid.UUID, amount: Decimal, user_id, service_user_id):

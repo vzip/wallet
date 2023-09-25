@@ -13,15 +13,18 @@ aiohttp
 aiosignal
 amqp
 anyio
+asyncio
 
 # Data manipulation
 pydantic
+pydantic[email]
 pandas
 
 #Utils
 PyJWT==2.3.0
 passlib==1.7.4
 validators
+python-dotenv
 
 # Testing
 pytest

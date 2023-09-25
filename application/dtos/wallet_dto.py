@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List
 from decimal import Decimal
 import uuid
@@ -10,9 +10,9 @@ class WalletCreateDTO(BaseModel):
     user_id: uuid.UUID
 
 class UserExtWalletCreateDTO(BaseModel):
-    wallet_name = str
-    currency_id = int
-    user_id = uuid.UUID
+    wallet_name: str 
+    currency_id: int
+    user_id: uuid.UUID
     
 class WalletOutDTO(BaseModel):
     id: uuid.UUID

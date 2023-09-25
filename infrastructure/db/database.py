@@ -7,10 +7,18 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData
 import os
+from dotenv import load_dotenv
 
-# DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://default_user:default_pass@localhost/default_db")
+# Загрузка переменных окружения из .env файла
+load_dotenv()
 
-DATABASE_URL = 'postgresql+asyncpg://admin:Dezya201188@localhost/wallet_db'
+db_user = os.getenv("DB_USER", "postgres")
+db_password = os.getenv("DB_PASSWORD", "password")
+db_host = os.getenv("DB_HOST", "psql") # psql #0.0.0.0
+db_name = os.getenv("DB_NAME", "wallet_db")
+
+DATABASE_URL = f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}/{db_name}"
+
 engine = create_async_engine(DATABASE_URL, echo=True, pool_size=0, max_overflow=-1, pool_timeout=360)
 
 Base = declarative_base()

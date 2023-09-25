@@ -314,7 +314,7 @@ async def transfer_transaction(session, amount: Decimal, from_wallet_id: uuid.UU
         
         if not from_wallet:
             logging.info(f"source_wallet_id have different owner")
-            return {"status": "source_wallet_id have different owner"}
+            return {"error": "source_wallet_id have different owner"}
         
 
         stmt = select(Wallet).where(Wallet.id == to_wallet_id).with_for_update()
@@ -323,10 +323,10 @@ async def transfer_transaction(session, amount: Decimal, from_wallet_id: uuid.UU
 
         if not to_wallet:
             logging.info(f"target_wallet_id does not exist")
-            return {"status": "target_wallet_id does not exist"}
+            return {"error": "target_wallet_id does not exist"}
         
         if from_wallet.balance < amount:
-            return {"status": "insufficient_funds"}
+            return {"error": "insufficient_funds"}
 
         from_wallet.balance -= amount
 
@@ -344,7 +344,7 @@ async def transfer_transaction(session, amount: Decimal, from_wallet_id: uuid.UU
             
             if not exchange_rate:
                 logging.info(f"NO exchange rate for curencies: {from_wallet.currency_id} and {to_wallet.currency_id}")
-                return {"status": "exchange_rate_not_found"}
+                return {"error": "exchange_rate_not_found"}
             
             converted_amount = amount * exchange_rate.rate
             converted_amount = round_decimal(converted_amount)
@@ -375,4 +375,5 @@ async def transfer_transaction(session, amount: Decimal, from_wallet_id: uuid.UU
         return new_transaction
     except SQLAlchemyError as e:
         logging.info(f"SQLAlchemyError:  {e}")
-        # raise e
+        await session.rollback()
+        raise e
