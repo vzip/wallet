@@ -17,4 +17,8 @@ COPY . .
 
 # Запускаем приложение
 # CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010"]
-CMD ["sh", "-c", "if [ \"$(nproc)\" -eq 1 ]; then WORKERS=1; else WORKERS=$(($(nproc) * 2 + 1)); fi; exec gunicorn -w $WORKERS -k uvicorn.workers.UvicornWorker -t 360 main:app --bind 0.0.0.0:8010"]
+# CMD ["sh", "-c", "if [ \"$(nproc)\" -eq 1 ]; then WORKERS=1; else WORKERS=$(($(nproc) * 2 + 1)); fi; exec gunicorn -w $WORKERS -k uvicorn.workers.UvicornWorker -t 360 main:app --bind 0.0.0.0:8010"]
+
+RUN chmod +x /Wallet/init.sh
+
+CMD ["/Wallet/init.sh"]

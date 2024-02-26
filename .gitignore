@@ -4,3 +4,6 @@
 .dockerignore
 .env
 **/.env
+docker-compose.yml
+env/
+**/db_new/

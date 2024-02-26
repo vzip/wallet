@@ -44,6 +44,11 @@
 - `PUT/service/transaction/deposit` : Update Service Deposit Transaction Status. Обновление статуса pending транзакций пользователя. Проведение операций двиджения денежных средств. Cоздание сервисной транзакции `deposit` для пополнения сервисного кошелька, создание транзакции `transfer` для перемещения средств с сервисного кошелька на кошелек пользователя, и создание тразакции `comission` для перемещения суммы комиссии с кошеька пользователя на сервисный кошелек.
 - `PUT/service/transaction/withdraw` : Update Service Withdraw Transaction Status. Обновление статуса pending транзакций пользователя. Проведение операций двиджения денежных средств. Cоздание транзакции `withdraw` для вывода средств с кошелька пользователя, и создание тразакции `comission` для перемещения суммы комиссии с кошеька пользователя на сервисный кошелек.
 
+**Updated new methods for exchange currencies services
+- `POST /service/exchange-rates/update` : Update exchange rates in the database to current rates
+- `GET /service/exchange-rates/last-update` : Get the date and time of the last update of rates in the database.
+- `POST /service/exchange-rates/get-conversion` : Conversion between currencies.
+
 ### Безопасность
 
 - Доступ к операциям с кошельками и транзакциями возможен только после аутентификации.
@@ -69,5 +74,12 @@
 - docker build --no-cache -t wallet . 
 - docker run --name psql --network=wallet_network --env-file .env -p 5432:5432 -d --restart=always postgres:14
 - docker run --name wallet --network=wallet_network --env-file .env -p 8010:8010 -d --restart=always wallet
+
+**Updated new way to build app
+## Run with docker compose
+- docker compose built --no-cache
+- docker compose up -d
+or 
+- docker-compose up --build -d
 
 

@@ -8,8 +8,6 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData
 import os
 from dotenv import load_dotenv
-
-# Загрузка переменных окружения из .env файла
 load_dotenv()
 
 db_user = os.getenv("DB_USER", "postgres")
@@ -17,9 +15,11 @@ db_password = os.getenv("DB_PASSWORD", "password")
 db_host = os.getenv("DB_HOST", "psql") # psql #0.0.0.0
 db_name = os.getenv("DB_NAME", "wallet_db")
 
-DATABASE_URL = f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}/{db_name}"
+DATABASE_URL_CONF = f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}/{db_name}"
 
-engine = create_async_engine(DATABASE_URL, echo=True, pool_size=0, max_overflow=-1, pool_timeout=360)
+DATABASE = os.getenv("DATABASE_URL", DATABASE_URL_CONF)
+
+engine = create_async_engine(DATABASE, echo=True, pool_size=0, max_overflow=-1, pool_timeout=360)
 
 Base = declarative_base()
 

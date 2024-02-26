@@ -10,6 +10,7 @@ from application.dtos.amount_dto import AmountOutDTO
 from application.dtos.user_dto import UserCreateDTO, UserOutDTO, UserListDTO
 from application.dtos.wallet_dto import WalletCreateDTO, WalletOutDTO, WalletListDTO, UserExtWalletCreateDTO
 from application.dtos.transaction_dto import TransactionCreateDTO, TransactionListDTO, TransactionOutDTO, PendingTransactionOutDTO, CombinedTransactionListDTO
+from application.dtos.rates_dto import ConversionResultDTO
 from decimal import Decimal, InvalidOperation
 from typing import List
 from datetime import datetime
@@ -268,8 +269,9 @@ async def deposit_wallet(service_user_id: uuid.UUID, wallet_id: uuid.UUID, amoun
     except Exception as e:
         if exception_raised:
             raise e
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))    
-
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))   
+     
+# Make conversion 
 @app.post("/wallet/exchange", response_model=AmountOutDTO)
 async def exchange_amount(from_currency: int, to_currency: int, amount: Decimal = Query(..., alias="amount"),  session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_user)):
     amount = ensure_decimal_places(amount, 10)
@@ -395,6 +397,56 @@ async def update_service_withdraw_transaction_status(transaction_id: uuid.UUID, 
         if exception_raised:
             raise e
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))  
+
+# ... exchange methods
+
+# Update exchange rates by service user
+@app.post("/service/exchange-rates/update")
+async def update_exchange_rates(session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_service_user)):
+    exception_raised = False
+    try:
+        result = await exchange_service.update_exchange_rates(session)
+        if result:
+            return {"status": "success", "message": "Exchange rates updated successfully"}
+        else:
+            exception_raised = True
+            raise HTTPException(status_code=400, detail="Failed to update exchange rates")
+    except Exception as e:
+        if exception_raised:
+            raise e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))  
+
+# Get the date and time of the last update of rates by service user
+@app.get("/service/exchange-rates/last-update")
+async def get_last_exchange_rate_update(session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_service_user)):
+    last_update_info = await exchange_service.get_last_update(session)
+    if "error" in last_update_info:
+        raise HTTPException(status_code=404, detail=last_update_info["error"])
+    return last_update_info
+
+
+# Get the conversion by service user
+@app.post("/service/exchange-rates/get-conversion", response_model=ConversionResultDTO)
+async def convert_currency(from_currency: str, to_currency: str, amount: Decimal, session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_service_user)):
+    converted_amount = await exchange_service.calculate_conversion(session, from_currency, to_currency, amount)
+    if converted_amount is not None:
+        return ConversionResultDTO(
+            from_currency=from_currency,
+            to_currency=to_currency,
+            original_amount=amount,
+            converted_amount=converted_amount
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Conversion failed or rate not found")
+
+# Update list of currencies in db from ext api
+@app.post("/service/currencies/update")
+async def update_currencies(session: AsyncSession = Depends(get_db), current_user: str = Depends(get_current_service_user)):
+    result = await exchange_service.update_currencies_from_api(session)
+    if result:
+        return {"status": "success", "message": "Currencies updated successfully"}
+    else:
+        raise HTTPException(status_code=400, detail="Failed to update currencies")    
 
 
 # ... next methods transactions

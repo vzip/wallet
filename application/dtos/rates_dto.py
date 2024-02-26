@@ -23,3 +23,9 @@ class RateOutDTO(BaseModel):
 
 class RateListDTO(BaseModel):
     rates: List[RateOutDTO]
+
+class ConversionResultDTO(BaseModel):
+    from_currency: str
+    to_currency: str
+    original_amount: Decimal
+    converted_amount: Decimal

@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14
+    container_name: psql
+    networks:
+      - wallet_network
+    environment:
+      POSTGRES_PASSWORD: your_password 
+      POSTGRES_DB: your_db 
+    ports:
+      - "5432:5432"
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  wallet:
+    build: .
+    container_name: wallet
+    networks:
+      - wallet_network
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:your_password@psql/your_db
+      - DATABASE_URL_SYNC=postgresql://postgres:your_password@psql/your_db 
+      - EXCHANGE_RATES_API_KEY=your_key
+    ports:
+      - "8010:8010"
+    restart: always
+
+networks:
+  wallet_network:
+    name: wallet_network
+
+volumes:
+  postgres_data:

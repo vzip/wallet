@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy import Enum as En
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -145,20 +145,25 @@ class PendingTransaction(Base):
     external_wallet_id = Column(UUID(as_uuid=True), ForeignKey('external_wallets.id'))
     external_transaction_id = Column(UUID(as_uuid=True), unique=True)
 
-    
 
 class Currency(Base):
     __tablename__ = 'currencies'
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True)
+    name = Column(String)
     symbol = Column(String, unique=True)
+    #code = Column(String, unique=True) 
+
 
 class ExchangeRate(Base):
     __tablename__ = 'exchange_rates'
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     from_currency_id = Column(Integer, ForeignKey('currencies.id'))
     to_currency_id = Column(Integer, ForeignKey('currencies.id'))
     rate = Column(DECIMAL(precision=20, scale=10))
-#reverse_rate = Column(DECIMAL(precision=20, scale=10))
-#timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    last_updated = Column(DateTime(timezone=True), server_default=func.now())
+    # Отношения для обеспечения ссылок на модели валют
+    from_currency = relationship("Currency", foreign_keys=[from_currency_id])
+    to_currency = relationship("Currency", foreign_keys=[to_currency_id])
+    # Добавляем уникальное ограничение на пару from_currency_id и to_currency_id
+    __table_args__ = (UniqueConstraint('from_currency_id', 'to_currency_id', name='uq_currency_pair'),)
 
